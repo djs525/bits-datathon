@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+from pathlib import Path
 
 # ── Load ──────────────────────────────────────────────────────────────────────
 def load_json(path):
@@ -22,22 +23,29 @@ def load_json(path):
 
 # ── Filter ────────────────────────────────────────────────────────────────────
 def filter_restaurants(records):
-    """Keep only businesses that include 'Restaurants' in their categories."""
-    restaurants = []
+    """Keep only food-service and nightlife businesses."""
+    keywords = {
+        'Restaurants', 'Food', 'Bars', 'Nightlife', 'Sandwiches', 'Pizza', 
+        'Italian', 'Mexican', 'Chinese', 'Japanese', 'Breakfast & Brunch', 
+        'Bakery', 'Desserts', 'Ice Cream & Frozen Yogurt', 'Coffee & Tea', 
+        'Delis', 'Seafood', 'Steakhouses', 'Diners', 'Specialty Food', 'Fast Food'
+    }
+    filtered = []
     for r in records:
-        cats = r.get("categories") or ""
-        if "Restaurants" in cats:
-            restaurants.append(r)
-    return restaurants
+        cats = set((r.get("categories") or "").split(", "))
+        if keywords & cats:
+            filtered.append(r)
+    return filtered
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    INPUT_PATH  = "/Users/devshah/Downloads/bits-datathon/yelp_nj_business.json"
-    OUTPUT_JSON = "yelp_nj_restaurants.json"
-    OUTPUT_CSV  = "yelp_nj_restaurants.csv"
+    DATA_DIR = Path(__file__).parent.parent / "data"
+    INPUT_PATH  = DATA_DIR / "yelp_nj_business.json"
+    OUTPUT_JSON = DATA_DIR / "yelp_nj_restaurants.json"
+    OUTPUT_CSV  = DATA_DIR / "yelp_nj_restaurants.csv"
 
-    print("Loading data...")
+    print(f"Loading data from {INPUT_PATH}...")
     records = load_json(INPUT_PATH)
     print(f"  Total NJ businesses : {len(records):,}")
 

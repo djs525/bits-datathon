@@ -1,0 +1,179 @@
+{
+  "report_metadata": {
+    "generated_at": "2026-02-28",
+    "dataset_size": "4,205 NJ Food/Drink Businesses",
+    "scope": "All NJ Food-related businesses (Expanded)"
+  },
+  "recommendations": [
+    {
+      "area_id": "07836",
+      "area_name": "Flanders",
+      "opportunity_score": 100,
+      "primary_concept": "Pizza",
+      "evidence": {
+        "demand_signal": "High demand spillover for Pizza from neighbors.",
+        "competitive_gap": "Only 0 existing Pizza spots locally.",
+        "market_size": "17 total reviews in area.",
+        "growth_potential": "High"
+      },
+      "risk_assessment": {
+        "closure_risk": "High",
+        "risk_factor": "High churn"
+      }
+    },
+    {
+      "area_id": "08002",
+      "area_name": "Cherry Hill",
+      "opportunity_score": 100,
+      "primary_concept": "Pubs",
+      "evidence": {
+        "demand_signal": "High demand spillover for Pubs from neighbors.",
+        "competitive_gap": "Only 0 existing Pubs spots locally.",
+        "market_size": "13,555 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "Medium",
+        "risk_factor": "Market saturated"
+      }
+    },
+    {
+      "area_id": "08003",
+      "area_name": "Cherry Hill",
+      "opportunity_score": 100,
+      "primary_concept": "American",
+      "evidence": {
+        "demand_signal": "High demand spillover for American from neighbors.",
+        "competitive_gap": "Only 1 existing American spots locally.",
+        "market_size": "5,171 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "Medium",
+        "risk_factor": "High churn"
+      }
+    },
+    {
+      "area_id": "08004",
+      "area_name": "Atco",
+      "opportunity_score": 100,
+      "primary_concept": "Burgers",
+      "evidence": {
+        "demand_signal": "High demand spillover for Burgers from neighbors.",
+        "competitive_gap": "Only 0 existing Burgers spots locally.",
+        "market_size": "256 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "Low",
+        "risk_factor": "None significant"
+      }
+    },
+    {
+      "area_id": "08005",
+      "area_name": "Medford",
+      "opportunity_score": 100,
+      "primary_concept": "Pizza",
+      "evidence": {
+        "demand_signal": "High demand spillover for Pizza from neighbors.",
+        "competitive_gap": "Only 0 existing Pizza spots locally.",
+        "market_size": "7 total reviews in area.",
+        "growth_potential": "High"
+      },
+      "risk_assessment": {
+        "closure_risk": "Low",
+        "risk_factor": "None significant"
+      }
+    },
+    {
+      "area_id": "08007",
+      "area_name": "Barrington",
+      "opportunity_score": 100,
+      "primary_concept": "Bakeries",
+      "evidence": {
+        "demand_signal": "High demand spillover for Bakeries from neighbors.",
+        "competitive_gap": "Only 0 existing Bakeries spots locally.",
+        "market_size": "532 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "High",
+        "risk_factor": "High churn"
+      }
+    },
+    {
+      "area_id": "08009",
+      "area_name": "Berlin",
+      "opportunity_score": 100,
+      "primary_concept": "Japanese",
+      "evidence": {
+        "demand_signal": "High demand spillover for Japanese from neighbors.",
+        "competitive_gap": "Only 0 existing Japanese spots locally.",
+        "market_size": "1,513 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "Low",
+        "risk_factor": "None significant"
+      }
+    },
+    {
+      "area_id": "08010",
+      "area_name": "Edgewater Park",
+      "opportunity_score": 100,
+      "primary_concept": "Italian",
+      "evidence": {
+        "demand_signal": "High demand spillover for Italian from neighbors.",
+        "competitive_gap": "Only 0 existing Italian spots locally.",
+        "market_size": "291 total reviews in area.",
+        "growth_potential": "High"
+      },
+      "risk_assessment": {
+        "closure_risk": "Low",
+        "risk_factor": "None significant"
+      }
+    },
+    {
+      "area_id": "08012",
+      "area_name": "Turnersville",
+      "opportunity_score": 100,
+      "primary_concept": "Indian",
+      "evidence": {
+        "demand_signal": "High demand spillover for Indian from neighbors.",
+        "competitive_gap": "Only 0 existing Indian spots locally.",
+        "market_size": "3,486 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "Low",
+        "risk_factor": "None significant"
+      }
+    },
+    {
+      "area_id": "08018",
+      "area_name": "Cedarbrook",
+      "opportunity_score": 100,
+      "primary_concept": "American",
+      "evidence": {
+        "demand_signal": "High demand spillover for American from neighbors.",
+        "competitive_gap": "Only 0 existing American spots locally.",
+        "market_size": "55 total reviews in area.",
+        "growth_potential": "Moderate"
+      },
+      "risk_assessment": {
+        "closure_risk": "Low",
+        "risk_factor": "None significant"
+      }
+    }
+  ],
+  "alternatives": [
+    {
+      "strategy": "High Traffic / High Risk",
+      "zip": "08020"
+    },
+    {
+      "strategy": "Low Competition / Boutique",
+      "zip": "08028"
+    }
+  ]
+}

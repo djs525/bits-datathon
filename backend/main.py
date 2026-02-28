@@ -28,6 +28,9 @@ with open(DATA_DIR / "gap_analysis.json") as f:
 with open(DATA_DIR / "yelp_nj_restaurants.json") as f:
     RESTAURANTS: list[dict] = json.load(f)
 
+with open(DATA_DIR / "recommendation_report.json") as f:
+    RECOMMENDATION_REPORT: dict = json.load(f)
+
 # Index for fast lookup
 GAP_BY_ZIP = {z["zip"]: z for z in GAP_DATA}
 RESTAURANTS_BY_ZIP: dict[str, list] = {}
@@ -239,7 +242,7 @@ def root():
         "model_loaded": _survival_model is not None,
         "endpoints": [
             "/opportunities", "/opportunity/{zip}", "/search",
-            "/weakspots", "/predict", "/meta/cuisines",
+            "/weakspots", "/predict", "/meta/cuisines", "/recommendations",
         ],
     }
 
@@ -463,6 +466,126 @@ def get_weakspots(
 
     results.sort(key=lambda x: -(x["closure_rate"] * x["opportunity_score"]))
     return {"count": len(results), "results": results[:limit]}
+
+
+@app.get("/recommendations", tags=["Core"])
+def get_recommendations(
+    cuisine: Optional[str] = Query(None, description="Target cuisine type (e.g. 'Japanese', 'Pizza')"),
+    max_risk: Optional[str] = Query(None, description="Max acceptable risk: low | medium | high"),
+    max_price_tier: Optional[float] = Query(None, description="Max average price tier (1=budget, 4=upscale)"),
+    byob: Optional[bool] = Query(None, description="Require BYOB opportunity gap"),
+    delivery: Optional[bool] = Query(None, description="Require Delivery opportunity gap"),
+    outdoor: Optional[bool] = Query(None, description="Require Outdoor Seating gap"),
+    kid_friendly: Optional[bool] = Query(None, description="Require Kid-Friendly gap"),
+    min_market_size: int = Query(0, description="Minimum total reviews in area"),
+    limit: int = Query(10, le=30, description="Number of recommendations to return"),
+):
+    """
+    Dynamic restaurant recommendations personalized to the user's concept.
+
+    Re-scores and re-ranks all zip codes in real-time based on:
+    - **cuisine**: Boosts zips where that specific cuisine has highest demand/gap
+    - **max_risk**: Filters out high-closure areas if user is risk-averse
+    - **max_price_tier**: Aligns recommendations with target market positioning
+    - **attributes**: Weights toward areas with those specific service gaps
+    - **min_market_size**: Ensures enough foot traffic in the area
+    """
+    risk_order = {"low": 0, "medium": 1, "high": 2}
+    required_attrs = []
+    if byob:        required_attrs.append("BYOB")
+    if delivery:    required_attrs.append("HasTV")  # delivery proxy
+    if outdoor:     required_attrs.append("OutdoorSeating")
+    if kid_friendly: required_attrs.append("GoodForKids")
+
+    results = []
+    for z in GAP_DATA:
+        # — Hard filters —
+        if z["total_reviews"] < min_market_size:
+            continue
+        if max_risk:
+            if risk_order.get(risk_label(z["closure_rate"]), 2) > risk_order.get(max_risk, 2):
+                continue
+        if max_price_tier and z.get("avg_price", 2) > max_price_tier:
+            continue
+
+        # For required attributes, check that the zip has those gaps
+        present_gaps = {a["attribute"] for a in z["attr_gaps"]}
+        if required_attrs and not all(a in present_gaps for a in required_attrs):
+            continue
+
+        # — Dynamic Scoring —
+        # Base: cuisine-aware gap score
+        if cuisine:
+            matched_gaps = [g for g in z["top_cuisine_gaps"] if g["cuisine"].lower() == cuisine.lower()]
+            if not matched_gaps:
+                # No gap for requested cuisine = skip (no opportunity here)
+                continue
+            top_gap = matched_gaps[0]["gap_score"]
+        else:
+            top_gap = z["top_cuisine_gaps"][0]["gap_score"] if z["top_cuisine_gaps"] else 0
+
+        # Market size (log-scaled)
+        market_score = math.log10(z["total_reviews"] + 1) * 8
+
+        # Stability (lower closure = higher score)
+        stability_score = (1 - z["closure_rate"]) * 20
+
+        # Attribute bonus — extra weight for each matching service gap
+        attr_bonus = len(z["attr_gaps"]) * 3
+
+        # Combined weighted score (0–100)
+        score = min(100, round((top_gap * 5) + market_score + stability_score + attr_bonus, 1))
+
+        # — Build top gap context —
+        if cuisine:
+            top_gaps = matched_gaps + [g for g in z["top_cuisine_gaps"] if g["cuisine"].lower() != cuisine.lower()]
+        else:
+            top_gaps = z["top_cuisine_gaps"]
+
+        primary = top_gaps[0]["cuisine"] if top_gaps else "General"
+        competition_signal = (
+            f"Zero local competition" if top_gaps and top_gaps[0]["local_count"] == 0
+            else f"{top_gaps[0]['local_count']} existing competitor(s)" if top_gaps else "Unknown"
+        )
+
+        results.append({
+            "zip": z["zip"],
+            "city": z["city"],
+            "opportunity_score": score,
+            "primary_concept": primary,
+            "risk": risk_label(z["closure_rate"]),
+            "closure_rate": z["closure_rate"],
+            "avg_stars": z["avg_stars"],
+            "total_reviews": z["total_reviews"],
+            "avg_price_tier": z.get("avg_price"),
+            "evidence": {
+                "cuisine_gap_score": round(top_gap, 2),
+                "competition_signal": competition_signal,
+                "neighbor_demand": top_gaps[0]["neighbor_demand"] if top_gaps else 0,
+                "market_size": f"{z['total_reviews']:,} reviews",
+                "attribute_opportunities": [a["attribute"] for a in z["attr_gaps"]],
+            },
+            "top_cuisine_gaps": top_gaps[:3],
+        })
+
+    # Sort by score desc
+    results.sort(key=lambda x: -x["opportunity_score"])
+
+    return {
+        "query": {
+            "cuisine": cuisine,
+            "max_risk": max_risk,
+            "max_price_tier": max_price_tier,
+            "byob": byob,
+            "delivery": delivery,
+            "outdoor": outdoor,
+            "kid_friendly": kid_friendly,
+            "min_market_size": min_market_size,
+        },
+        "count": len(results),
+        "recommendations": results[:limit],
+    }
+
 
 
 # ── /predict ──────────────────────────────────────────────────────────────────
