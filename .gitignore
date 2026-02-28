@@ -1,0 +1,20 @@
+# Data
+emails.csv
+emails_sample.csv
+slack_data.json
+triaged_messages.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
