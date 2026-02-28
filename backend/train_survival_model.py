@@ -40,13 +40,19 @@ warnings.filterwarnings("ignore")
 
 # ── Feature config ────────────────────────────────────────────────────────────
 
+# These features are derived from a business's full review history and are
+# post-hoc proxies for the label (closed restaurants have shorter lifespans).
+# We deliberately exclude them from training so the model generalises to
+# brand-new restaurants where this history doesn't exist yet.
+LEAKAGE_FEATURES = {"lifespan_days", "review_velocity_30d", "review_velocity_90d", "reviews_per_month"}
+
 NUMERIC_FEATURES = [
     # yelp base
     "stars_yelp", "review_count_yelp", "price_tier",
-    # review temporal
-    "review_count_computed", "lifespan_days", "review_velocity_30d",
-    "review_velocity_90d", "reviews_per_month",
-    # star trend
+    # review count (how established the business is, not leaky because it's
+    # the Yelp-reported count, not our computed temporal window)
+    "review_count_computed",
+    # star trend (distribution-based, not time-window-based)
     "pct_1star", "pct_5star", "pct_negative", "pct_positive",
     "star_std", "star_slope", "stars_first_quartile", "stars_last_quartile", "star_delta",
     # sentiment
@@ -57,7 +63,9 @@ NUMERIC_FEATURES = [
     "total_engagement", "pct_engaged_reviews",
     # text
     "avg_review_length", "median_review_length",
-    # attributes
+    # market context (zip-level) — helps density/baseline capture
+    "zip_total_restaurants", "zip_avg_stars", "zip_avg_price", "zip_closure_rate",
+    # attributes — these are concept-level choices an entrepreneur makes
     "has_delivery", "has_takeout", "has_outdoor_seating", "good_for_kids",
     "has_reservations", "has_wifi", "has_alcohol", "has_tv", "good_for_groups",
 ]
@@ -148,19 +156,19 @@ def train(df: pd.DataFrame, feature_cols: list[str]) -> tuple[xgb.XGBClassifier,
     scale_pos_weight = neg / pos if pos > 0 else 1.0
 
     model = xgb.XGBClassifier(
-        n_estimators=400,
-        max_depth=6,
-        min_child_weight = 5,
-        reg_alpha = 0.1,
-        learning_rate=0.05,
+        n_estimators=500,
+        max_depth=5,           # slightly shallower to reduce overfit without leakage features
+        min_child_weight=5,
+        reg_alpha=0.1,
+        reg_lambda=1.5,        # added L2 regularisation
+        learning_rate=0.04,
         subsample=0.8,
         colsample_bytree=0.8,
         scale_pos_weight=scale_pos_weight,
-        use_label_encoder=False,
         eval_metric="auc",
         random_state=42,
         n_jobs=-1,
-        tree_method="hist",  # fast for medium datasets
+        tree_method="hist",
     )
 
     # ── Cross-validation ──────────────────────────────────────────────────────
@@ -251,8 +259,10 @@ def save_outputs(
         "feature_cols": feature_cols,
         "metrics": metrics,
         "model_path": str(model_path.resolve()),
+        "leakage_features_excluded": sorted(LEAKAGE_FEATURES),
         "description": (
             "XGBoost classifier predicting restaurant survival (is_open=1). "
+            "Trained without temporal leakage features (lifespan_days, review velocities). "
             "Input: per-business features from compute_review_features.py. "
             "Output: probability of staying open."
         ),

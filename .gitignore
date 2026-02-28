@@ -1,0 +1,11 @@
+node_modules/
+bits/
+.DS_Store
+__pycache__/
+.pytest_cache/
+yelp_academic_dataset_*.json
+yelp_nj_reviews*.json
+*.zip
+*.pyc
+*.csv
+.env

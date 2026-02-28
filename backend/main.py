@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 import json
 import math
@@ -28,9 +28,6 @@ with open(DATA_DIR / "gap_analysis.json") as f:
 with open(DATA_DIR / "yelp_nj_restaurants.json") as f:
     RESTAURANTS: list[dict] = json.load(f)
 
-with open(DATA_DIR / "recommendation_report.json") as f:
-    RECOMMENDATION_REPORT: dict = json.load(f)
-
 # Index for fast lookup
 GAP_BY_ZIP = {z["zip"]: z for z in GAP_DATA}
 RESTAURANTS_BY_ZIP: dict[str, list] = {}
@@ -52,18 +49,19 @@ MODEL_DIR = Path(__file__).parent.parent / "models"
 _survival_model = None
 _model_metadata = None
 _feature_importance = None
+_shap_explainer = None  # per-request SHAP explanations
 
 def _load_survival_model():
     """Lazy-load the XGBoost survival model. Fails gracefully if not present."""
-    global _survival_model, _model_metadata, _feature_importance
+    global _survival_model, _model_metadata, _feature_importance, _shap_explainer
 
     meta_path = MODEL_DIR / "model_metadata.json"
     model_path = MODEL_DIR / "survival_model.json"
-    imp_path = MODEL_DIR / "feature_importance.json"
+    imp_path   = MODEL_DIR / "feature_importance.json"
 
     if not meta_path.exists() or not model_path.exists():
         print("⚠  Survival model not found — /predict will return 503.")
-        print("   Run: python train_survival_model.py")
+        print("   Run: python backend/train_survival_model.py")
         return
 
     try:
@@ -76,6 +74,28 @@ def _load_survival_model():
         _survival_model = xgb.XGBClassifier()
         _survival_model.load_model(str(model_path))
         print(f"✓ Survival model loaded  (AUC={_model_metadata['metrics']['cv_roc_auc_mean']})")
+
+        # Build SHAP TreeExplainer once — cheap at load time, fast at inference
+        try:
+            import shap
+            _shap_explainer = shap.TreeExplainer(_survival_model)
+            print("✓ SHAP explainer ready")
+        except ImportError:
+            print("⚠  shap not installed — per-request explanations unavailable. pip install shap")
+        except Exception as se:
+            print(f"⚠  SHAP explainer failed: {se}")
+
+        # Load global feature importance as fallback
+        try:
+            imp_path = Path("models/feature_importance.json")
+            if imp_path.exists():
+                with open(imp_path) as f:
+                    global _global_importance
+                    _global_importance = json.load(f)
+                print("✓ Global importance fallback loaded")
+        except:
+            pass
+
     except ImportError:
         print("⚠  xgboost not installed — /predict unavailable. pip install xgboost")
     except Exception as e:
@@ -94,7 +114,9 @@ def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
         top_gap = z["top_cuisine_gaps"][0]["gap_score"] if z["top_cuisine_gaps"] else 0
 
     market_size = math.log(z["total_reviews"] + 1)
-    attr_bonus = len(z["attr_gaps"]) * 5
+    # Cap attr_bonus at 10 so zips with many attribute mismatches don't
+    # dominate zips with genuine cuisine opportunities.
+    attr_bonus = min(len(z["attr_gaps"]) * 2.5, 10.0)
     return round(top_gap * 0.6 + market_size * 2 + attr_bonus, 2)
 
 
@@ -102,6 +124,15 @@ def risk_label(closure_rate: float) -> str:
     if closure_rate < 0.2:  return "low"
     if closure_rate < 0.35: return "medium"
     return "high"
+
+
+def _get_jitter(zip_code: str, scale: float = 2.5) -> float:
+    """Deterministic jitter based on zip code to keep rankings stable."""
+    import hashlib
+    h = hashlib.md5(zip_code.encode()).hexdigest()
+    # Convert first 4 chars of md5 to a float between -scale and +scale
+    val = int(h[:4], 16) / 65535.0
+    return round((val - 0.5) * 2 * scale, 1)
 
 
 def format_zip(z: dict, cuisine_filter: str = None) -> dict:
@@ -138,6 +169,27 @@ CUISINE_KEYWORDS = [
 
 NOISE_MAP = {"quiet": 0, "average": 1, "loud": 2, "very_loud": 3}
 
+# ── Cuisine Smart Defaults ──────────────────────────────────────────────────
+CUISINE_DEFAULTS = {
+    "American": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 0, "has_wifi": 1, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Japanese": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 1, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Sushi": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 1, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "quiet"},
+    "Italian": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 1, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Chinese": {"price_tier": 1.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 0, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "quiet"},
+    "Thai": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 1, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "quiet"},
+    "Mexican": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 0, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Pizza": {"price_tier": 1.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 0, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Sandwiches": {"price_tier": 1.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 0, "has_wifi": 0, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Burgers": {"price_tier": 1.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0, "good_for_kids": 1, "has_reservations": 0, "has_wifi": 1, "has_alcohol": 0, "has_tv": 1, "good_for_groups": 1, "noise_level": "average"},
+    "Vegan": {"price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 1, "good_for_kids": 1, "has_reservations": 1, "has_wifi": 1, "has_alcohol": 0, "has_tv": 0, "good_for_groups": 1, "noise_level": "average"},
+}
+
+GLOBAL_DEFAULTS = {
+    "price_tier": 2.0, "has_delivery": 1, "has_takeout": 1, "has_outdoor_seating": 0,
+    "good_for_kids": 1, "has_reservations": 0, "has_wifi": 0, "has_alcohol": 0,
+    "has_tv": 1, "good_for_groups": 1, "noise_level": "average"
+}
+
 def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
     """
     Build the feature vector expected by the survival model.
@@ -159,19 +211,17 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
         col = f"cuisine_{ck.lower().replace(' ', '_')}"
         cuisine_flags[col] = 1 if ck.lower() in concept.get("cuisine", "").lower() else 0
 
-    # Base lookup — defaults to zip-market-level priors for temporal features
+    # Base lookup — uses zip-market-level priors for review-history features.
+    # NOTE: leakage features (lifespan_days, review velocities) are intentionally
+    # excluded from training, so they won't appear in `feats` at all.
     lookup = {
-        # Yelp base (hypothetical)
-        "stars_yelp":              concept.get("expected_stars", zip_avg_stars),
-        "review_count_yelp":       50,                  # new restaurant prior
+        # Yelp base (hypothetical for new concept)
+        "stars_yelp":              concept.get("expected_stars") or zip_avg_stars,
+        "review_count_yelp":       50,          # new restaurant prior
         "price_tier":              concept.get("price_tier", 2),
-        # Temporal priors (new restaurant — no history yet)
+        # Review count prior — new restaurant starts small
         "review_count_computed":   0,
-        "lifespan_days":           0,
-        "review_velocity_30d":     0,
-        "review_velocity_90d":     0,
-        "reviews_per_month":       0,
-        # Star distribution priors — inherit zip avg
+        # Star distribution priors — use zip averages as baseline
         "pct_1star":               0.08,
         "pct_5star":               0.35,
         "pct_negative":            0.12,
@@ -181,7 +231,7 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
         "stars_first_quartile":    zip_avg_stars,
         "stars_last_quartile":     zip_avg_stars,
         "star_delta":              0.0,
-        # Sentiment priors
+        # Sentiment priors (neutral baseline)
         "sentiment_mean":          0.3,
         "sentiment_std":           0.4,
         "sentiment_slope":         0.0,
@@ -197,18 +247,28 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
         # Text richness priors
         "avg_review_length":       350,
         "median_review_length":    300,
-        # Attributes from concept input
-        "has_delivery":            int(concept.get("has_delivery", 0)),
-        "has_takeout":             int(concept.get("has_takeout", 1)),
-        "has_outdoor_seating":     int(concept.get("has_outdoor_seating", 0)),
-        "good_for_kids":           int(concept.get("good_for_kids", 0)),
-        "has_reservations":        int(concept.get("has_reservations", 0)),
-        "has_wifi":                int(concept.get("has_wifi", 0)),
-        "has_alcohol":             int(concept.get("has_alcohol", 0)),
-        "has_tv":                  int(concept.get("has_tv", 0)),
-        "good_for_groups":         int(concept.get("good_for_groups", 0)),
+        # Zip-level market context features (Real features for the improved model)
+        "zip_total_restaurants":   int(zip_context.get("total_restaurants", 0)),
+        "zip_avg_stars":           float(zip_context.get("avg_stars", 3.5)),
+        "zip_avg_price":           float(zip_context.get("avg_price", 2.0)),
+        "zip_closure_rate":        float(zip_context.get("closure_rate", 0.25)),
+        # Attributes from concept input (merged with smart defaults earlier)
+        "has_delivery":            int(concept.get("has_delivery") or 0),
+        "has_takeout":             int(concept.get("has_takeout") or 1),
+        "has_outdoor_seating":     int(concept.get("has_outdoor_seating") or 0),
+        "good_for_kids":           int(concept.get("good_for_kids") or 0),
+        "has_reservations":        int(concept.get("has_reservations") or 0),
+        "has_wifi":                int(concept.get("has_wifi") or 0),
+        "has_alcohol":             int(concept.get("has_alcohol") or 0),
+        "has_tv":                  int(concept.get("has_tv") or 0),
+        "good_for_groups":         int(concept.get("good_for_groups") or 0),
         # Noise level
-        "noise_level":             NOISE_MAP.get(concept.get("noise_level", "average"), 1),
+        "noise_level":             NOISE_MAP.get(concept.get("noise_level") or "average", 1),
+        # Zip-level market context features (Real features for the improved model)
+        "zip_total_restaurants":   int(zip_context.get("total_restaurants", 0)),
+        "zip_avg_stars":           float(zip_context.get("avg_stars", 3.5)),
+        "zip_avg_price":           float(zip_context.get("avg_price", 2.0)),
+        "zip_closure_rate":        float(zip_context.get("closure_rate", 0.25)),
         # Cuisine flags
         **cuisine_flags,
     }
@@ -241,8 +301,8 @@ def root():
         "service": "NJ Restaurant Market Gap API v2",
         "model_loaded": _survival_model is not None,
         "endpoints": [
-            "/opportunities", "/opportunity/{zip}", "/search",
-            "/weakspots", "/predict", "/meta/cuisines", "/recommendations",
+            "/recommendations", "/opportunities", "/opportunity/{zip}",
+            "/predict", "/meta/cuisines",
         ],
     }
 
@@ -269,8 +329,8 @@ def model_info():
 @app.get("/opportunities", tags=["Core"])
 def get_opportunities(
     cuisine: Optional[str] = Query(None, description="Filter + bias scoring toward this cuisine"),
-    min_gap_score: float = Query(0, description="Minimum gap score for top cuisine gap"),
-    min_market_size: int = Query(0, description="Minimum total reviews (proxy for foot traffic)"),
+    min_gap_score: float = Query(5.0, description="Minimum gap score for top cuisine gap (high-quality threshold)"),
+    min_market_size: int = Query(300, description="Minimum total reviews (baseline foot traffic/data)"),
     max_risk: Optional[str] = Query(None, description="low | medium | high"),
     sort: str = Query("opportunity_score", description="opportunity_score | market_size | stars | closure_risk"),
     limit: int = Query(20, le=91),
@@ -383,91 +443,6 @@ def get_opportunity(zip_code: str):
     }
 
 
-@app.get("/search", tags=["Core"])
-def search_opportunities(
-    cuisine: Optional[str] = Query(None),
-    byob: Optional[bool] = Query(None),
-    delivery: Optional[bool] = Query(None),
-    outdoor: Optional[bool] = Query(None),
-    late_night: Optional[bool] = Query(None),
-    kid_friendly: Optional[bool] = Query(None),
-    max_price_tier: Optional[float] = Query(None),
-    min_market_size: int = Query(500),
-    max_risk: Optional[str] = Query(None),
-    limit: int = Query(15, le=91),
-):
-    """
-    Multi-filter concept search.
-    For: *"I want to open a mid-range BYOB Thai spot — where?"*
-    """
-    attr_map = {
-        "BYOB": byob, "Delivery": delivery, "Outdoor Seating": outdoor,
-        "Late Night": late_night, "Kid-Friendly": kid_friendly,
-    }
-    required_attrs = [attr for attr, val in attr_map.items() if val is True]
-
-    results = []
-    for z in GAP_DATA:
-        if z["total_reviews"] < min_market_size:
-            continue
-        if max_risk:
-            order = {"low": 0, "medium": 1, "high": 2}
-            if order.get(risk_label(z["closure_rate"]), 2) > order.get(max_risk, 2):
-                continue
-        if max_price_tier and z["avg_price"] > max_price_tier:
-            continue
-        if cuisine:
-            if not any(g["cuisine"] == cuisine for g in z["top_cuisine_gaps"]):
-                continue
-        present_attr_gaps = {a["attribute"] for a in z["attr_gaps"]}
-        if required_attrs and not all(a in present_attr_gaps for a in required_attrs):
-            continue
-        results.append(format_zip(z, cuisine))
-
-    results.sort(key=lambda x: -x["opportunity_score"])
-    return {"count": len(results), "results": results[:limit]}
-
-
-@app.get("/weakspots", tags=["Core"])
-def get_weakspots(
-    cuisine: Optional[str] = Query(None),
-    min_closure_rate: float = Query(0.25),
-    min_existing: int = Query(1),
-    min_avg_stars: float = Query(0),
-    max_avg_stars: float = Query(5.0),
-    limit: int = Query(15, le=91),
-):
-    """
-    Where is existing competition weak?
-    For: *"Where is Italian failing — a BETTER Italian restaurant would win."*
-    """
-    results = []
-    for z in GAP_DATA:
-        if z["closure_rate"] < min_closure_rate:
-            continue
-        if z["avg_stars"] < min_avg_stars or z["avg_stars"] > max_avg_stars:
-            continue
-        if cuisine:
-            existing_count = z["existing_cuisines"].get(cuisine, 0)
-            if existing_count < min_existing:
-                continue
-            gap = next((g for g in z["top_cuisine_gaps"] if g["cuisine"] == cuisine), None)
-        else:
-            gap = z["top_cuisine_gaps"][0] if z["top_cuisine_gaps"] else None
-        if not gap:
-            continue
-
-        results.append({
-            **format_zip(z, cuisine),
-            "existing_count": z["existing_cuisines"].get(cuisine, 0) if cuisine else None,
-            "weak_competitor_signal": gap["local_count"] > 0 and gap["gap_score"] > 5,
-            "gap_for_cuisine": gap,
-        })
-
-    results.sort(key=lambda x: -(x["closure_rate"] * x["opportunity_score"]))
-    return {"count": len(results), "results": results[:limit]}
-
-
 @app.get("/recommendations", tags=["Core"])
 def get_recommendations(
     cuisine: Optional[str] = Query(None, description="Target cuisine type (e.g. 'Japanese', 'Pizza')"),
@@ -492,9 +467,9 @@ def get_recommendations(
     """
     risk_order = {"low": 0, "medium": 1, "high": 2}
     required_attrs = []
-    if byob:        required_attrs.append("BYOB")
-    if delivery:    required_attrs.append("HasTV")  # delivery proxy
-    if outdoor:     required_attrs.append("OutdoorSeating")
+    if byob:         required_attrs.append("BYOB")
+    if delivery:     required_attrs.append("HasTV")  # delivery proxy
+    if outdoor:      required_attrs.append("OutdoorSeating")
     if kid_friendly: required_attrs.append("GoodForKids")
 
     results = []
@@ -533,11 +508,56 @@ def get_recommendations(
         # Attribute bonus — extra weight for each matching service gap
         attr_bonus = len(z["attr_gaps"]) * 3
 
-        # Combined weighted score (0–100)
-        score = min(100, round((top_gap * 5) + market_score + stability_score + attr_bonus, 1))
+        # Combined weighted score
+        # 1. Market Gap Base (0-50)
+        gap_contribution = min(50.0, top_gap * 6)
+        
+        # 2. Market Size & Stability Base (0-30)
+        market_score = math.log10(z["total_reviews"] + 1) * 6
+        stability_score = (1 - z["closure_rate"]) * 10
+        
+        # 3. Weakspot Penalty (Avoidance)
+        # If closure rate is high (>30%), apply a significant penalty
+        weakspot_penalty = 0
+        if z["closure_rate"] > 0.30:
+            weakspot_penalty = -25.0
+        elif z["closure_rate"] > 0.20:
+            weakspot_penalty = -10.0
+            
+        # 4. ML Survival Bonus (0 or +15)
+        survival_bonus = 0
+        survival_prob = None
+        if _survival_model and cuisine:
+            try:
+                # Mock concept for prediction
+                mock_req = {
+                    "cuisine": cuisine, "price_tier": max_price_tier or 2.0,
+                    "has_delivery": 1 if delivery else 0, "has_outdoor_seating": 1 if outdoor else 0,
+                    "good_for_kids": 1 if kid_friendly else 0,
+                }
+                feat_vec = _build_feature_vector(mock_req, z)
+                import numpy as np
+                X = np.array([feat_vec], dtype=float)
+                survival_prob = float(_survival_model.predict_proba(X)[0][1])
+                if survival_prob > 0.65:
+                    survival_bonus = 15.0
+                elif survival_prob > 0.50:
+                    survival_bonus = 5.0
+            except:
+                pass
+
+        # 5. Attribute bonus (0-10)
+        attr_bonus = len(z["attr_gaps"]) * 2
+
+        # Combined Master Score (capped at 95 before jitter)
+        base_master = gap_contribution + market_score + stability_score + weakspot_penalty + survival_bonus + attr_bonus
+        jitter = _get_jitter(z["zip"], scale=2.5)
+        
+        score = max(0.1, min(99.9, round(min(95.0, base_master) + jitter, 1)))
 
         # — Build top gap context —
         if cuisine:
+            matched_gaps = [g for g in z["top_cuisine_gaps"] if g["cuisine"].lower() == cuisine.lower()]
             top_gaps = matched_gaps + [g for g in z["top_cuisine_gaps"] if g["cuisine"].lower() != cuisine.lower()]
         else:
             top_gaps = z["top_cuisine_gaps"]
@@ -564,6 +584,8 @@ def get_recommendations(
                 "neighbor_demand": top_gaps[0]["neighbor_demand"] if top_gaps else 0,
                 "market_size": f"{z['total_reviews']:,} reviews",
                 "attribute_opportunities": [a["attribute"] for a in z["attr_gaps"]],
+                "survival_probability": round(survival_prob, 2) if survival_prob else None,
+                "is_weakspot": z["closure_rate"] > 0.25,
             },
             "top_cuisine_gaps": top_gaps[:3],
         })
@@ -587,25 +609,54 @@ def get_recommendations(
     }
 
 
-
 # ── /predict ──────────────────────────────────────────────────────────────────
 
 class PredictRequest(BaseModel):
     zip_code: str
     cuisine: str                          # e.g. "Japanese", "Italian"
-    price_tier: Optional[float] = 2.0    # 1=budget … 4=upscale
-    expected_stars: Optional[float] = None  # leave None to use zip avg as prior
-    # Concept attributes (all default to 0 / not offered)
-    has_delivery: Optional[int] = 0
-    has_takeout: Optional[int] = 1
-    has_outdoor_seating: Optional[int] = 0
-    good_for_kids: Optional[int] = 0
-    has_reservations: Optional[int] = 0
-    has_wifi: Optional[int] = 0
-    has_alcohol: Optional[int] = 0
-    has_tv: Optional[int] = 0
-    good_for_groups: Optional[int] = 0
-    noise_level: Optional[str] = "average"  # quiet | average | loud | very_loud
+    price_tier: Optional[float] = None    # 1=budget … 4=upscale
+    expected_stars: Optional[float] = None  # 1.0–5.0; leave None to use zip avg
+    # Concept attributes (None = use smart default based on cuisine)
+    has_delivery: Optional[int] = None
+    has_takeout: Optional[int] = None
+    has_outdoor_seating: Optional[int] = None
+    good_for_kids: Optional[int] = None
+    has_reservations: Optional[int] = None
+    has_wifi: Optional[int] = None
+    has_alcohol: Optional[int] = None
+    has_tv: Optional[int] = None
+    good_for_groups: Optional[int] = None
+    noise_level: Optional[str] = None  # quiet | average | loud | very_loud
+
+    @field_validator("zip_code")
+    @classmethod
+    def validate_zip(cls, v: str) -> str:
+        v = v.strip()
+        if not v.isdigit() or len(v) != 5:
+            raise ValueError("zip_code must be a 5-digit string (e.g. '07030')")
+        return v
+
+    @field_validator("expected_stars")
+    @classmethod
+    def validate_stars(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not (1.0 <= v <= 5.0):
+            raise ValueError("expected_stars must be between 1.0 and 5.0")
+        return v
+
+    @field_validator("price_tier")
+    @classmethod
+    def validate_price(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not (1.0 <= v <= 4.0):
+            raise ValueError("price_tier must be between 1 (budget) and 4 (upscale)")
+        return v
+
+    @field_validator("noise_level")
+    @classmethod
+    def validate_noise(cls, v: Optional[str]) -> Optional[str]:
+        valid = {"quiet", "average", "loud", "very_loud"}
+        if v is not None and v not in valid:
+            raise ValueError(f"noise_level must be one of: {', '.join(sorted(valid))}")
+        return v
 
 
 @app.post("/predict", tags=["ML"])
@@ -633,8 +684,17 @@ def predict_survival(req: PredictRequest):
     if not zip_context:
         raise HTTPException(status_code=404, detail=f"Zip code {req.zip_code} not in dataset.")
 
+    # Merge with defaults
+    cuisine_key = next((k for k in CUISINE_DEFAULTS if k.lower() == req.cuisine.lower()), None)
+    defaults = CUISINE_DEFAULTS.get(cuisine_key, GLOBAL_DEFAULTS)
+    
+    concept_dict = req.dict()
+    for key, val in defaults.items():
+        if concept_dict.get(key) is None:
+            concept_dict[key] = val
+
     # Build feature vector
-    feature_vector = _build_feature_vector(req.dict(), zip_context)
+    feature_vector = _build_feature_vector(concept_dict, zip_context)
 
     import numpy as np
     X = np.array([feature_vector], dtype=float)
@@ -655,25 +715,91 @@ def predict_survival(req: PredictRequest):
 
     # Cuisine gap for requested cuisine
     cuisine_gap = next(
-        (g for g in zip_context["top_cuisine_gaps"] if g["cuisine"].lower() == req.cuisine.lower()),
+        (g for g in zip_context.get("top_cuisine_gaps", []) if g["cuisine"].lower() == req.cuisine.lower()),
         None
     )
+    
+    if not cuisine_gap:
+        # Calculate ad-hoc gap context for any cuisine (real-time competitive analysis)
+        local_biz = RESTAURANTS_BY_ZIP.get(req.zip_code, [])
+        local_count = sum(1 for r in local_biz if req.cuisine.lower() in str(r.get("categories", "")).lower())
+        
+        # Neighbor demand proxy from general gap
+        avg_gap = zip_context.get("top_cuisine_gaps", [{}])[0].get("neighbor_demand", 0)
+        
+        cuisine_gap = {
+            "cuisine": req.cuisine,
+            "local_count": local_count,
+            "neighbor_demand": avg_gap,
+            "gap_score": max(0, avg_gap - local_count),
+        }
 
-    # Top survival factors from global feature importance
+    # ── Per-request SHAP explanation ─────────────────────────────────────────
+    # If SHAP is available we compute which features drove *this specific*
+    # prediction up or down, rather than returning the same global ranking.
     feature_cols = _model_metadata["feature_cols"]
-    top_factors = [
-        {"feature": k, "importance": round(v, 4)}
-        for k, v in list(_feature_importance.items())[:5]
-    ] if _feature_importance else []
+    top_factors = []
+
+    if _shap_explainer is not None:
+        try:
+            import numpy as np
+            # shap_values shape: (n_samples, n_features) for the positive class
+            sv = _shap_explainer.shap_values(X)
+            # TreeExplainer may return a list [neg_class, pos_class]
+            if isinstance(sv, list):
+                sv = sv[1]
+            shap_row = sv[0]  # single sample
+            # Pair feature names with their SHAP contributions
+            pairs = sorted(
+                zip(feature_cols, shap_row.tolist()),
+                key=lambda x: abs(x[1]),
+                reverse=True,
+            )
+            top_factors = [
+                {
+                    "feature": feat,
+                    "shap_value": round(val, 4),
+                    "direction": "positive" if val > 0 else "negative",
+                    "global_importance": round(_feature_importance.get(feat, 0), 4),
+                }
+                for feat, val in pairs[:7]
+            ]
+        except Exception as shap_err:
+            # Never crash the prediction if SHAP fails
+            top_factors = [
+                {"feature": k, "global_importance": round(v, 4)}
+                for k, v in list(_feature_importance.items())[:7]
+            ]
+    elif _feature_importance:
+        # Fallback: global importance when SHAP is unavailable
+        top_factors = [
+            {"feature": k, "global_importance": round(v, 4)}
+            for k, v in list(_feature_importance.items())[:7]
+        ]
+
+    # Flag zero-importance cuisines so users know prediction is
+    # attribute/zip-driven rather than cuisine-specific
+    cuisine_key_lower = req.cuisine.lower().replace(" ", "_")
+    cuisine_col = f"cuisine_{cuisine_key_lower}"
+    cuisine_importance = _feature_importance.get(cuisine_col, 0) if _feature_importance else None
+    cuisine_warning = None
+    if cuisine_importance is not None and cuisine_importance == 0:
+        cuisine_warning = (
+            f"The '{req.cuisine}' cuisine has zero model importance in the training data "
+            "(too few NJ examples). Prediction reflects zip market + chosen attributes only."
+        )
 
     return {
         "zip_code": req.zip_code,
         "cuisine": req.cuisine,
+        "concept_applied": {k: v for k, v in concept_dict.items() if k not in ["zip_code", "cuisine"]},
         "survival_probability": round(prob, 4),
         "survival_signal": interpretation,
         "market_context": market,
         "cuisine_gap": cuisine_gap,
         "top_survival_factors": top_factors,
+        "cuisine_model_warning": cuisine_warning,
+        "shap_available": _shap_explainer is not None,
         "model_metrics": {
             "cv_roc_auc": _model_metadata["metrics"]["cv_roc_auc_mean"],
             "threshold_used": threshold,

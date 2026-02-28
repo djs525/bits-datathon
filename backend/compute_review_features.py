@@ -292,6 +292,31 @@ def main():
 
     print(f"  {len(by_biz):,} businesses have at least 1 review in this dataset.")
 
+    # ── Zip-level aggregates (Market Density/Context) ─────────────────────────
+    print("Calculating zip-level aggregates…")
+    biz_df = pd.DataFrame(businesses)
+    
+    # 1. Zip Closure Rate
+    zip_stats = biz_df.groupby("postal_code").agg({
+        "is_open": ["count", "mean"],
+        "stars": "mean"
+    })
+    zip_stats.columns = ["zip_total_restaurants", "zip_open_rate", "zip_avg_stars"]
+    zip_stats["zip_closure_rate"] = 1.0 - zip_stats["zip_open_rate"]
+    
+    # 2. Zip Price Level
+    def get_price(attrs):
+        if not attrs: return None
+        p = attrs.get("RestaurantsPriceRange2")
+        try: return float(p) if p else None
+        except: return None
+    
+    biz_df["price_tier"] = biz_df["attributes"].apply(get_price)
+    zip_price = biz_df.groupby("postal_code")["price_tier"].mean().rename("zip_avg_price")
+    zip_stats = zip_stats.join(zip_price)
+    
+    zip_lookup_stats = zip_stats.to_dict("index")
+
     # ── Extract features ──────────────────────────────────────────────────────
     print(f"\nExtracting features {'(with VADER sentiment)' if VADER_AVAILABLE else '(no sentiment — install vaderSentiment)'}…")
     results = []
@@ -299,6 +324,7 @@ def main():
 
     for biz in tqdm(businesses, desc="Processing", unit="biz"):
         bid = biz["business_id"]
+        zip_code = biz.get("postal_code")
         biz_reviews = by_biz.get(bid, [])
 
         if not biz_reviews:
@@ -308,6 +334,9 @@ def main():
 
         # ── Business-level base features ──────────────────────────────────────
         attrs = biz.get("attributes") or {}
+        
+        # Zip stats fallback
+        zstats = zip_lookup_stats.get(zip_code, {})
 
         def attr_bool(key: str) -> int | None:
             v = attrs.get(key)
@@ -326,10 +355,15 @@ def main():
             "business_id": bid,
             "name": biz.get("name"),
             "city": biz.get("city"),
-            "postal_code": biz.get("postal_code"),
+            "postal_code": zip_code,
             "categories": biz.get("categories"),
             "latitude": biz.get("latitude"),
             "longitude": biz.get("longitude"),
+            # market context (zip-level)
+            "zip_total_restaurants": int(zstats.get("zip_total_restaurants", 0)),
+            "zip_avg_stars": round(float(zstats.get("zip_avg_stars", 0)), 4),
+            "zip_avg_price": round(float(zstats.get("zip_avg_price", 0)), 4),
+            "zip_closure_rate": round(float(zstats.get("zip_closure_rate", 0)), 4),
             # base business features
             "stars_yelp": biz.get("stars"),
             "review_count_yelp": biz.get("review_count"),
