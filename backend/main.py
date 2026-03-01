@@ -122,7 +122,7 @@ def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
 
 def risk_label(closure_rate: float) -> str:
     if closure_rate < 0.20: return "low"
-    if closure_rate < 0.30: return "medium"
+    if closure_rate < 0.35: return "medium"
     return "high"
 
 
@@ -325,7 +325,7 @@ def get_opportunities(
     cuisine: Optional[str] = Query(None, description="Filter + bias scoring toward this cuisine"),
     min_gap_score: float = Query(0.0, description="Minimum gap score for top cuisine gap (0 = show all)"),
     min_market_size: int = Query(0, description="Minimum total reviews (0 = show all areas)"),
-    max_risk: Optional[str] = Query(None, description="low | medium | high"),
+    risk_levels: Optional[str] = Query(None, description="Comma-separated accepted risks: low,medium,high"),
     sort: str = Query("opportunity_score", description="opportunity_score | market_size | stars | closure_risk | distance_to_target"),
     target_zip: Optional[str] = Query(None, description="Zip code to calculate distance from when sorting by distance"),
     limit: int = Query(91, le=91),
@@ -351,9 +351,9 @@ def get_opportunities(
         if z["total_reviews"] < min_market_size:
             continue
 
-        if max_risk:
-            order = {"low": 0, "medium": 1, "high": 2}
-            if order.get(risk_label(z["closure_rate"]), 2) > order.get(max_risk, 2):
+        if risk_levels:
+            accepted_risks = [r.strip().lower() for r in risk_levels.split(",")]
+            if risk_label(z["closure_rate"]) not in accepted_risks:
                 continue
 
         results.append(format_zip(z, cuisine))
@@ -551,7 +551,7 @@ ZIP_COORDS: dict[str, tuple[float, float]] = {
 @app.get("/recommendations", tags=["Core"])
 def get_recommendations(
     cuisine: Optional[str] = Query(None, description="Target cuisine type (e.g. 'Japanese', 'Pizza')"),
-    max_risk: Optional[str] = Query(None, description="Max acceptable risk: low | medium | high"),
+    risk_levels: Optional[str] = Query(None, description="Comma-separated accepted risks: low,medium,high"),
     max_price_tier: Optional[float] = Query(None, description="Max average price tier (1=budget, 4=upscale)"),
     byob: Optional[bool] = Query(None, description="Require BYOB opportunity gap"),
     delivery: Optional[bool] = Query(None, description="Require Delivery opportunity gap"),
@@ -609,21 +609,17 @@ def get_recommendations(
         if z["total_reviews"] < min_market_size:
             continue  # Keep minimum market size as a hard filter
 
-        # Idea #2 — Risk with tolerance buffer
-        if max_risk:
-            z_risk_order = risk_order.get(risk_label(z["closure_rate"]), 2)
-            allowed_risk_order = risk_order.get(max_risk, 2)
-            if z_risk_order > allowed_risk_order:
-                # Apply buffer: if it only slightly exceeds, absorb at reduced penalty
-                closure_limit = {"low": 0.20, "medium": 0.30}.get(max_risk, 0.30)
-                overshoot = z["closure_rate"] - closure_limit
-                if overshoot <= RISK_TOLERANCE:
-                    penalty -= 5.0   # small buffer penalty
-                    match_issues.append(f"Marginally higher risk (closure {z['closure_rate']*100:.1f}% vs limit {closure_limit*100:.0f}%)")
-                else:
-                    is_exact = False
-                    penalty -= 25.0
-                    match_issues.append("Slightly higher risk than requested")
+        # Idea #2 — Risk toggle logic
+        if risk_levels:
+            accepted_risks = [r.strip().lower() for r in risk_levels.split(",")]
+            z_risk = risk_label(z["closure_rate"])
+            if z_risk not in accepted_risks:
+                # If they didn't explicitly select this risk level, strictly penalize/exclude
+                # Note: Tolerance buffer is less applicable here since they are explicitly
+                # selecting discrete bins rather than a "maximum threshold".
+                is_exact = False
+                penalty -= 25.0
+                match_issues.append(f"Excluded: Market risk is {z_risk.upper()} (not selected)")
 
         # Idea #2 — Price with tolerance buffer
         if max_price_tier:

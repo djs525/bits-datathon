@@ -9,7 +9,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
     const [attrs, setAttrs] = useState({});
     const [maxPrice, setMaxPrice] = useState("");
     const [minMarket, setMinMarket] = useState("0");
-    const [maxRisk, setMaxRisk] = useState("");
+    const [riskLevels, setRiskLevels] = useState(["low", "medium", "high"]);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -23,7 +23,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
 
         const apiParams = {
             cuisine: cuisine || undefined,
-            max_risk: maxRisk || undefined,
+            risk_levels: riskLevels.length > 0 ? riskLevels.join(",") : undefined,
             max_price_tier: maxPrice ? parseFloat(maxPrice) : undefined,
             byob: attrs["BYOB"] || undefined,
             delivery: attrs["Delivery"] || undefined,
@@ -133,17 +133,23 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
 
                     <Row label="Risk Tolerance">
                         <div style={{ display: "flex", gap: 8 }}>
-                            {[["", "Any"], ["low", "Low"], ["medium", "Med"], ["high", "High"]].map(([v, label]) => (
-                                <button key={v} onClick={() => setMaxRisk(v)} style={{
-                                    background: maxRisk === v ? "var(--text-main)" : "white",
-                                    border: `1px solid ${maxRisk === v ? "var(--text-main)" : "var(--border)"}`,
-                                    color: maxRisk === v ? "white" : "var(--text-main)",
-                                    borderRadius: 12, padding: "10px 0", cursor: "pointer",
-                                    fontSize: 13, transition: "all 0.2s", fontWeight: 700, flex: 1
-                                }}>
-                                    {label}
-                                </button>
-                            ))}
+                            {[["low", "Low"], ["medium", "Med"], ["high", "High"]].map(([v, label]) => {
+                                const isSelected = riskLevels.includes(v);
+                                return (
+                                    <button key={v} onClick={() => {
+                                        if (isSelected) setRiskLevels(prev => prev.filter(r => r !== v));
+                                        else setRiskLevels(prev => [...prev, v]);
+                                    }} style={{
+                                        background: isSelected ? "var(--text-main)" : "white",
+                                        border: `1px solid ${isSelected ? "var(--text-main)" : "var(--border)"}`,
+                                        color: isSelected ? "white" : "var(--text-main)",
+                                        borderRadius: 12, padding: "10px 0", cursor: "pointer",
+                                        fontSize: 13, transition: "all 0.2s", fontWeight: 700, flex: 1
+                                    }}>
+                                        {label}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </Row>
 
