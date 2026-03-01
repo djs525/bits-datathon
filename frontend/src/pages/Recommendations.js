@@ -131,8 +131,8 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
                         </div>
                     </Row>
 
-                    <Row label="Risk Tolerance">
-                        <div style={{ display: "flex", gap: 8 }}>
+                    <Row label="Risk Tolerance (Select Multiple)">
+                        <div style={{ display: "flex", gap: 8, padding: "12px", border: "1px solid var(--border)", borderRadius: 12, background: "#fafafa" }}>
                             {[["low", "Low"], ["medium", "Med"], ["high", "High"]].map(([v, label]) => {
                                 const isSelected = riskLevels.includes(v);
                                 return (
@@ -142,10 +142,12 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
                                     }} style={{
                                         background: isSelected ? "var(--text-main)" : "white",
                                         border: `1px solid ${isSelected ? "var(--text-main)" : "var(--border)"}`,
-                                        color: isSelected ? "white" : "var(--text-main)",
-                                        borderRadius: 12, padding: "10px 0", cursor: "pointer",
-                                        fontSize: 13, transition: "all 0.2s", fontWeight: 700, flex: 1
+                                        color: isSelected ? "white" : "var(--text-secondary)",
+                                        borderRadius: 8, padding: "10px 0", cursor: "pointer",
+                                        fontSize: 13, transition: "all 0.2s", fontWeight: 700, flex: 1,
+                                        display: "flex", alignItems: "center", justifyContent: "center", gap: 4
                                     }}>
+                                        {isSelected && <span style={{ fontSize: 13 }}>✓</span>}
                                         {label}
                                     </button>
                                 );

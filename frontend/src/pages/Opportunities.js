@@ -60,27 +60,34 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
               <option value="">Any Cuisine</option>
               {cuisines.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["low", "medium", "high"].map(v => {
-                const isSelected = filters.risk_levels.includes(v);
-                const labelMap = { low: "Low", medium: "Med", high: "High" };
-                return (
-                  <button key={v} onClick={() => {
-                    set("risk_levels", isSelected
-                      ? filters.risk_levels.filter(r => r !== v)
-                      : [...filters.risk_levels, v]
-                    );
-                  }} style={{
-                    background: isSelected ? "var(--text-main)" : "white",
-                    border: `1px solid ${isSelected ? "var(--text-main)" : "var(--border)"}`,
-                    color: isSelected ? "white" : "var(--text-main)",
-                    borderRadius: 8, padding: "6px 0", cursor: "pointer",
-                    fontSize: 12, transition: "all 0.2s", fontWeight: 600, flex: 1
-                  }}>
-                    {labelMap[v]}
-                  </button>
-                );
-              })}
+            <div style={{ padding: "12px", border: "1px solid var(--border)", borderRadius: 12, background: "#fafafa" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Risk Regions (Select Multiple)
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {["low", "medium", "high"].map(v => {
+                  const isSelected = filters.risk_levels.includes(v);
+                  const labelMap = { low: "Low", medium: "Med", high: "High" };
+                  return (
+                    <button key={v} onClick={() => {
+                      set("risk_levels", isSelected
+                        ? filters.risk_levels.filter(r => r !== v)
+                        : [...filters.risk_levels, v]
+                      );
+                    }} style={{
+                      background: isSelected ? "var(--text-main)" : "white",
+                      border: `1px solid ${isSelected ? "var(--text-main)" : "var(--border)"}`,
+                      color: isSelected ? "white" : "var(--text-secondary)",
+                      borderRadius: 8, padding: "8px 0", cursor: "pointer",
+                      fontSize: 12, transition: "all 0.2s", fontWeight: 600, flex: 1,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 4
+                    }}>
+                      {isSelected && <span style={{ fontSize: 11 }}>✓</span>}
+                      {labelMap[v]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <select value={filters.min_market_size} onChange={e => set("min_market_size", e.target.value)} style={sel}>
               <option value="0">Any market size</option>
