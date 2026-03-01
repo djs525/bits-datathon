@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
 import { ZipCard, Loader, EmptyState, SectionTitle, StatBox, RiskBadge, GapBar, ErrorCard } from "../components/ui";
+import Map from "../components/Map";
 
 export default function Opportunities({ cuisines }) {
   const [filters, setFilters] = useState({
@@ -41,15 +42,15 @@ export default function Opportunities({ cuisines }) {
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 450px", height: "100%", overflow: "hidden", background: "#F7F7F7" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 450px", height: "100%", overflow: "hidden", background: "#F7F7F7" }}>
       {/* ── Left: filters + results ── */}
       <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid var(--border)", background: "white" }}>
         {/* filters */}
-        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border)", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        <div style={{ padding: "20px", borderBottom: "1px solid var(--border)", background: "white" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Find your next location
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <select value={filters.cuisine} onChange={e => set("cuisine", e.target.value)} style={sel}>
               <option value="">Any Cuisine</option>
               {cuisines.map(c => <option key={c} value={c}>{c}</option>)}
@@ -77,13 +78,13 @@ export default function Opportunities({ cuisines }) {
         </div>
 
         {/* results */}
-        <div style={{ overflowY: "auto", padding: "24px 32px", display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
+        <div style={{ overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, flex: 1, background: "#F7F7F7" }}>
           {loading ? <Loader text="Analyzing NJ markets…" /> :
             error ? <ErrorCard message={error} /> :
               !results ? null :
                 results.results.length === 0 ? <EmptyState icon="📍" text={`No results for these filters.\nTry broadening your search.`} /> :
                   <>
-                    <div style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
                       {results.count} locations found in New Jersey
                     </div>
                     {results.results.map(z => (
@@ -91,6 +92,23 @@ export default function Opportunities({ cuisines }) {
                     ))}
                   </>}
         </div>
+      </div>
+
+      {/* ── Middle: Map ── */}
+      <div style={{ position: "relative", background: "#F7F7F7", padding: 16 }}>
+        <Map results={results?.results || []} selectedZip={selected} onZipSelect={selectZip} />
+        {results && (
+          <div style={{
+            position: "absolute", bottom: 28, left: 28, zIndex: 1000,
+            background: "#FFFFFF", border: "1px solid var(--border)",
+            padding: "8px 16px", borderRadius: 20,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+            fontSize: 13, color: "var(--text-secondary)",
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+            <span>Showing <b style={{ color: "var(--text-main)" }}>{results.results.length}</b> locations</span>
+          </div>
+        )}
       </div>
 
       {/* ── Right: detail ── */}
