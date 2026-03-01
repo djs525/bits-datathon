@@ -323,11 +323,11 @@ def model_info():
 @app.get("/opportunities", tags=["Core"])
 def get_opportunities(
     cuisine: Optional[str] = Query(None, description="Filter + bias scoring toward this cuisine"),
-    min_gap_score: float = Query(5.0, description="Minimum gap score for top cuisine gap (high-quality threshold)"),
-    min_market_size: int = Query(300, description="Minimum total reviews (baseline foot traffic/data)"),
+    min_gap_score: float = Query(0.0, description="Minimum gap score for top cuisine gap (0 = show all)"),
+    min_market_size: int = Query(0, description="Minimum total reviews (0 = show all areas)"),
     max_risk: Optional[str] = Query(None, description="low | medium | high"),
     sort: str = Query("opportunity_score", description="opportunity_score | market_size | stars | closure_risk"),
-    limit: int = Query(20, le=91),
+    limit: int = Query(91, le=91),
 ):
     """
     Ranked list of zip codes for a restaurant concept.
@@ -437,6 +437,109 @@ def get_opportunity(zip_code: str):
     }
 
 
+# ── Cuisine Synonym Families (Idea #5) ─────────────────────────────────────────
+# Maps a requested cuisine to a list of closely related cuisines whose gaps
+# "count" as exact matches for the requested concept.
+CUISINE_SYNONYMS: dict[str, list[str]] = {
+    "pizza":          ["italian"],
+    "italian":        ["pizza", "mediterranean"],
+    "japanese":       ["sushi", "korean", "asian"],
+    "sushi":          ["japanese", "asian"],
+    "korean":         ["japanese", "asian"],
+    "chinese":        ["asian", "vietnamese"],
+    "vietnamese":     ["asian", "chinese", "thai"],
+    "thai":           ["asian", "vietnamese"],
+    "asian":          ["japanese", "chinese", "vietnamese", "thai", "korean", "sushi"],
+    "mediterranean":  ["greek", "middle eastern", "italian"],
+    "greek":          ["mediterranean", "middle eastern"],
+    "middle eastern": ["mediterranean", "greek"],
+    "mexican":        ["spanish", "latin", "caribbean"],
+    "spanish":        ["mexican", "latin"],
+    "latin":          ["mexican", "spanish", "caribbean"],
+    "caribbean":      ["latin", "mexican"],
+    "american":       ["burgers", "sandwiches", "barbecue"],
+    "burgers":        ["american", "sandwiches"],
+    "sandwiches":     ["american", "burgers"],
+    "barbecue":       ["american"],
+    "vegan":          ["salad", "breakfast", "mediterranean"],
+    "seafood":        ["sushi", "japanese"],
+    "indian":         ["middle eastern", "mediterranean"],
+}
+
+
+# ── County Mapping for all 91 dataset zips ───────────────────────────────────
+ZIP_COUNTY: dict[str, str] = {
+    # Camden County
+    "08002": "Camden", "08003": "Camden", "08007": "Camden", "08012": "Camden",
+    "08021": "Camden", "08026": "Camden", "08029": "Camden", "08031": "Camden",
+    "08033": "Camden", "08034": "Camden", "08035": "Camden", "08045": "Camden",
+    "08049": "Camden", "08052": "Camden", "08059": "Camden", "08078": "Camden",
+    "08081": "Camden", "08083": "Camden", "08084": "Camden", "08091": "Camden",
+    "08102": "Camden", "08103": "Camden", "08104": "Camden", "08105": "Camden",
+    "08106": "Camden", "08107": "Camden", "08108": "Camden",
+    # Burlington County
+    "08010": "Burlington", "08016": "Burlington", "08022": "Burlington",
+    "08036": "Burlington", "08046": "Burlington", "08048": "Burlington",
+    "08054": "Burlington", "08055": "Burlington", "08057": "Burlington",
+    "08060": "Burlington", "08065": "Burlington", "08068": "Burlington",
+    "08075": "Burlington", "08077": "Burlington", "08088": "Burlington",
+    "08505": "Burlington", "08518": "Burlington", "08554": "Burlington",
+    # Gloucester County
+    "08004": "Gloucester", "08009": "Gloucester", "08018": "Gloucester",
+    "08020": "Gloucester", "08027": "Gloucester", "08028": "Gloucester",
+    "08030": "Gloucester", "08051": "Gloucester", "08062": "Gloucester",
+    "08063": "Gloucester", "08066": "Gloucester", "08071": "Gloucester",
+    "08080": "Gloucester", "08085": "Gloucester", "08086": "Gloucester",
+    "08089": "Gloucester", "08090": "Gloucester", "08093": "Gloucester",
+    "08094": "Gloucester", "08096": "Gloucester", "08097": "Gloucester",
+    "08312": "Gloucester", "08322": "Gloucester",
+    # Salem County
+    "08069": "Salem", "08070": "Salem", "08079": "Salem",
+    "08098": "Salem", "08318": "Salem", "08328": "Salem", "08344": "Salem",
+    # Mercer County
+    "08530": "Mercer", "08608": "Mercer", "08609": "Mercer", "08610": "Mercer",
+    "08611": "Mercer", "08618": "Mercer", "08619": "Mercer", "08628": "Mercer",
+    "08629": "Mercer", "08638": "Mercer", "08648": "Mercer",
+    # Pennsauken / Camden City
+    "08109": "Camden", "08110": "Camden",
+}
+
+# Approximate lat/lon centroids per zip (used by MMR geographic penalty)
+ZIP_COORDS: dict[str, tuple[float, float]] = {
+    "08002": (39.934, -74.998), "08003": (39.901, -74.953), "08004": (39.780, -74.877),
+    "08007": (39.864, -75.063), "08009": (39.791, -74.935), "08010": (40.063, -74.916),
+    "08012": (39.794, -75.063), "08016": (40.080, -74.862), "08018": (39.780, -75.015),
+    "08020": (39.812, -75.118), "08021": (39.802, -74.981), "08022": (40.017, -74.705),
+    "08026": (39.836, -74.967), "08027": (39.833, -75.116), "08028": (39.703, -75.112),
+    "08029": (39.834, -75.072), "08030": (39.889, -75.124), "08031": (39.868, -75.094),
+    "08033": (39.898, -75.033), "08034": (39.916, -74.993), "08035": (39.878, -75.065),
+    "08036": (40.002, -74.828), "08037": (39.639, -74.800), "08043": (39.859, -74.961),
+    "08045": (39.868, -75.028), "08046": (40.025, -74.893), "08048": (39.956, -74.647),
+    "08049": (39.858, -75.039), "08051": (39.768, -75.194), "08052": (39.952, -74.999),
+    "08053": (39.896, -74.918), "08054": (39.964, -74.918), "08055": (39.877, -74.823),
+    "08057": (39.972, -75.016), "08059": (39.876, -75.086), "08060": (39.995, -74.790),
+    "08062": (39.738, -75.232), "08063": (39.858, -75.178), "08065": (40.002, -75.022),
+    "08066": (39.837, -75.248), "08068": (39.957, -74.681), "08069": (39.727, -75.468),
+    "08070": (39.659, -75.517), "08071": (39.733, -75.134), "08075": (40.002, -74.936),
+    "08077": (40.001, -74.993), "08078": (39.857, -75.069), "08079": (39.574, -75.471),
+    "08080": (39.745, -75.103), "08081": (39.759, -75.006), "08083": (39.846, -75.019),
+    "08084": (39.832, -75.019), "08085": (39.750, -75.313), "08086": (39.857, -75.197),
+    "08088": (39.836, -74.686), "08089": (39.779, -74.963), "08090": (39.813, -75.155),
+    "08091": (39.803, -75.002), "08093": (39.870, -75.143), "08094": (39.668, -75.021),
+    "08096": (39.841, -75.152), "08097": (39.824, -75.148), "08098": (39.659, -75.323),
+    "08102": (39.943, -75.116), "08103": (39.939, -75.107), "08104": (39.916, -75.116),
+    "08105": (39.955, -75.094), "08106": (39.892, -75.073), "08107": (39.901, -75.077),
+    "08108": (39.917, -75.071), "08109": (39.975, -75.058), "08110": (39.981, -75.057),
+    "08312": (39.658, -75.086), "08318": (39.594, -75.134), "08322": (39.634, -75.059),
+    "08328": (39.577, -75.037), "08344": (39.596, -75.038), "08505": (40.142, -74.716),
+    "08518": (40.121, -74.808), "08530": (40.364, -74.943), "08554": (40.116, -74.792),
+    "08608": (40.219, -74.759), "08609": (40.223, -74.728), "08610": (40.193, -74.710),
+    "08611": (40.214, -74.741), "08618": (40.239, -74.804), "08619": (40.214, -74.661),
+    "08628": (40.264, -74.803), "08629": (40.219, -74.741), "08638": (40.248, -74.797),
+    "08648": (40.288, -74.740),
+}
+
+
 @app.get("/recommendations", tags=["Core"])
 def get_recommendations(
     cuisine: Optional[str] = Query(None, description="Target cuisine type (e.g. 'Japanese', 'Pizza')"),
@@ -466,64 +569,171 @@ def get_recommendations(
     if outdoor:      required_attrs.append("OutdoorSeating")
     if kid_friendly: required_attrs.append("GoodForKids")
 
+    # Idea #5 — build the set of accepted cuisines (requested + synonyms)
+    cuisine_family: set[str] = set()
+    if cuisine:
+        cuisine_family.add(cuisine.lower())
+        for syn in CUISINE_SYNONYMS.get(cuisine.lower(), []):
+            cuisine_family.add(syn.lower())
+
+    # Idea #2 — tolerance buffers so near-misses don't become relaxed
+    PRICE_TOLERANCE  = 0.5   # avg_price may exceed max by this much and still be exact
+    RISK_TOLERANCE   = 0.05  # closure_rate may exceed the risk boundary by 5 pp
+
+    # Idea #3 — total-penalty threshold: if cumulative penalty is small, call it exact
+    EXACT_PENALTY_THRESHOLD = -10.0
+
+    # Pre-compute sorted gap list for fast percentile lookup
+    import bisect
+    _all_top_gaps_sorted = sorted(
+        z2["top_cuisine_gaps"][0]["gap_score"] if z2["top_cuisine_gaps"] else 0
+        for z2 in GAP_DATA
+    )
+    _n_gaps = len(_all_top_gaps_sorted)
+
     results = []
     for z in GAP_DATA:
-        # — Hard filters —
+        is_exact = True
+        match_issues = []
+        penalty = 0.0
+
+        # — Soft filters (Relaxed Matching) —
         if z["total_reviews"] < min_market_size:
-            continue
+            continue  # Keep minimum market size as a hard filter
+
+        # Idea #2 — Risk with tolerance buffer
         if max_risk:
-            if risk_order.get(risk_label(z["closure_rate"]), 2) > risk_order.get(max_risk, 2):
-                continue
-        if max_price_tier and z.get("avg_price", 2) > max_price_tier:
-            continue
+            z_risk_order = risk_order.get(risk_label(z["closure_rate"]), 2)
+            allowed_risk_order = risk_order.get(max_risk, 2)
+            if z_risk_order > allowed_risk_order:
+                # Apply buffer: if it only slightly exceeds, absorb at reduced penalty
+                closure_limit = {"low": 0.20, "medium": 0.35}.get(max_risk, 0.35)
+                overshoot = z["closure_rate"] - closure_limit
+                if overshoot <= RISK_TOLERANCE:
+                    penalty -= 5.0   # small buffer penalty
+                    match_issues.append(f"Marginally higher risk (closure {z['closure_rate']*100:.1f}% vs limit {closure_limit*100:.0f}%)")
+                else:
+                    is_exact = False
+                    penalty -= 25.0
+                    match_issues.append("Slightly higher risk than requested")
+
+        # Idea #2 — Price with tolerance buffer
+        if max_price_tier:
+            z_price = z.get("avg_price", 2.0)
+            if z_price > max_price_tier:
+                overshoot = z_price - max_price_tier
+                if overshoot <= PRICE_TOLERANCE:
+                    penalty -= 5.0   # small buffer penalty
+                    match_issues.append(f"Slightly above price target ({z_price:.1f} vs requested ≤{max_price_tier})")
+                else:
+                    is_exact = False
+                    penalty -= 15.0
+                    match_issues.append(f"Average price tier is higher than expected")
 
         # For required attributes, check that the zip has those gaps
         present_gaps = {a["attribute"] for a in z["attr_gaps"]}
-        if required_attrs and not all(a in present_gaps for a in required_attrs):
-            continue
+        missing_attrs = [req for req in required_attrs if req not in present_gaps]
+
+        if missing_attrs:
+            # Idea #4 — "OR" / majority logic: if more than half are fulfilled, don't flip to relaxed
+            fulfilled = len(required_attrs) - len(missing_attrs)
+            majority_met = fulfilled >= len(required_attrs) / 2 if required_attrs else True
+
+            # Check confidence based on local sample size of the requested cuisine
+            low_confidence = False
+            if cuisine:
+                local_biz = RESTAURANTS_BY_ZIP.get(z["zip"], [])
+                local_cuisine_count = sum(
+                    1 for r in local_biz
+                    if any(c in str(r.get("categories", "")).lower() for c in cuisine_family)
+                )
+                if local_cuisine_count < 3:
+                    low_confidence = True
+
+            if low_confidence:
+                # Not enough data — tiny penalty
+                penalty -= 2.0 * len(missing_attrs)
+                match_issues.append(
+                    f"Unconfirmed gaps due to low local sample size ({local_cuisine_count} {cuisine} places): {', '.join(missing_attrs)}"
+                )
+            elif majority_met and len(required_attrs) >= 2:
+                # Idea #4 — majority fulfilled, treat as near-exact
+                penalty -= 5.0 * len(missing_attrs)
+                match_issues.append(f"Most requested service gaps present; missing: {', '.join(missing_attrs)}")
+            else:
+                is_exact = False
+                penalty -= 8.0 * len(missing_attrs)
+                match_issues.append(f"Missing validated service gaps: {', '.join(missing_attrs)}")
 
         # — Dynamic Scoring —
-        # Base: cuisine-aware gap score
+        # Idea #1 — Cuisine matching: accept any positive gap in the cuisine family
         if cuisine:
+            # First: exact cuisine name match
             matched_gaps = [g for g in z["top_cuisine_gaps"] if g["cuisine"].lower() == cuisine.lower()]
+            # Second: synonym family match (Idea #5)
             if not matched_gaps:
-                # No gap for requested cuisine = skip (no opportunity here)
-                continue
-            top_gap = matched_gaps[0]["gap_score"]
+                matched_gaps = [
+                    g for g in z["top_cuisine_gaps"]
+                    if g["cuisine"].lower() in cuisine_family
+                ]
+                if matched_gaps:
+                    top_gap = matched_gaps[0]["gap_score"]
+                    match_issues.append(f"Matched via related cuisine: {matched_gaps[0]['cuisine']}")
+                else:
+                    # Idea #1 — Not in top gaps but check if ANY positive gap exists
+                    local_biz = RESTAURANTS_BY_ZIP.get(z["zip"], [])
+                    local_count = sum(
+                        1 for r in local_biz
+                        if any(c in str(r.get("categories", "")).lower() for c in cuisine_family)
+                    )
+                    avg_gap = z.get("top_cuisine_gaps", [{}])[0].get("neighbor_demand", 0) if z.get("top_cuisine_gaps") else 0
+                    computed_gap = max(0, avg_gap - local_count)
+                    if computed_gap > 0:
+                        # There IS some gap, just smaller — accept as low-penalty relaxed
+                        is_exact = False
+                        penalty -= 8.0
+                        match_issues.append("Cuisine gap exists but not among strongest in this area")
+                        top_gap = computed_gap
+                    else:
+                        # Truly no gap signal
+                        is_exact = False
+                        penalty -= 12.0
+                        match_issues.append("No measurable cuisine gap detected in this area")
+                        top_gap = 0
+            else:
+                top_gap = matched_gaps[0]["gap_score"]
         else:
             top_gap = z["top_cuisine_gaps"][0]["gap_score"] if z["top_cuisine_gaps"] else 0
 
-        # Market size (log-scaled)
-        market_score = math.log10(z["total_reviews"] + 1) * 8
+        # ── Redesigned Scoring Formula ──────────────────────────────────────────
+        # Use percentile-rank normalization so that extreme outliers (e.g. Camden
+        # with gap scores of 300-491) don't dominate at the expense of all other
+        # cities. Each zip's gap is scored relative to the full dataset.
 
-        # Stability (lower closure = higher score)
-        stability_score = (1 - z["closure_rate"]) * 20
+        # 1. Percentile-normalized cuisine gap contribution (0–50 pts)
+        #    Each zip's gap is ranked against the full dataset distribution.
+        #    A gap at the 90th percentile → 45 pts; at the 50th → 25 pts.
+        gap_percentile = bisect.bisect_right(_all_top_gaps_sorted, top_gap) / _n_gaps
+        gap_contribution = gap_percentile * 50.0  # maps to 0–50 pts
 
-        # Attribute bonus — extra weight for each matching service gap
-        attr_bonus = len(z["attr_gaps"]) * 3
+        # 2. Market size — supporting context (reduced weight vs. gap)
+        market_score = math.log10(z["total_reviews"] + 1) * 4
 
-        # Combined weighted score
-        # 1. Market Gap Base (0-50)
-        gap_contribution = min(50.0, top_gap * 6)
-        
-        # 2. Market Size & Stability Base (0-30)
-        market_score = math.log10(z["total_reviews"] + 1) * 6
-        stability_score = (1 - z["closure_rate"]) * 10
-        
-        # 3. Weakspot Penalty (Avoidance)
-        # If closure rate is high (>30%), apply a significant penalty
+        # 3. Stability — lower closure = bonus
+        stability_score = (1 - z["closure_rate"]) * 8
+
+        # 4. Weakspot Penalty
         weakspot_penalty = 0
         if z["closure_rate"] > 0.30:
             weakspot_penalty = -25.0
         elif z["closure_rate"] > 0.20:
             weakspot_penalty = -10.0
-            
-        # 4. ML Survival Bonus (0 or +15)
+
+        # 5. ML Survival Bonus (0, +8, or +15)
         survival_bonus = 0
         survival_prob = None
         if _survival_model and cuisine:
             try:
-                # Mock concept for prediction
                 mock_req = {
                     "cuisine": cuisine, "price_tier": max_price_tier or 2.0,
                     "has_delivery": 1 if delivery else 0, "has_outdoor_seating": 1 if outdoor else 0,
@@ -536,18 +746,21 @@ def get_recommendations(
                 if survival_prob > 0.65:
                     survival_bonus = 15.0
                 elif survival_prob > 0.50:
-                    survival_bonus = 5.0
+                    survival_bonus = 8.0
             except:
                 pass
 
-        # 5. Attribute bonus (0-10)
-        attr_bonus = len(z["attr_gaps"]) * 2
+        # 6. Attribute gap bonus (tie-breaker weight only)
+        attr_bonus = len(z["attr_gaps"]) * 1.5
 
-        # Combined Master Score (capped at 95 before jitter)
-        base_master = gap_contribution + market_score + stability_score + weakspot_penalty + survival_bonus + attr_bonus
-        jitter = _get_jitter(z["zip"], scale=2.5)
-        
-        score = max(0.1, min(99.9, round(min(95.0, base_master) + jitter, 1)))
+        # Combined Master Score — cap raised to 99 so big gaps can fully surface
+        base_master = gap_contribution + market_score + stability_score + weakspot_penalty + survival_bonus + attr_bonus + penalty
+        jitter = _get_jitter(z["zip"], scale=1.5)   # reduced jitter so gap drives ranking
+        score = max(0.1, min(99.9, round(min(99.0, base_master) + jitter, 1)))
+
+        # Idea #3 — Penalty threshold: if cumulative penalty is small, still call it exact
+        if penalty < 0 and penalty >= EXACT_PENALTY_THRESHOLD:
+            is_exact = True
 
         # — Build top gap context —
         if cuisine:
@@ -566,6 +779,8 @@ def get_recommendations(
             "zip": z["zip"],
             "city": z["city"],
             "opportunity_score": score,
+            "match_type": "exact" if is_exact else "relaxed",
+            "match_issues": match_issues,
             "primary_concept": primary,
             "risk": risk_label(z["closure_rate"]),
             "closure_rate": z["closure_rate"],
@@ -587,6 +802,121 @@ def get_recommendations(
     # Sort by score desc
     results.sort(key=lambda x: -x["opportunity_score"])
 
+    # ── Step 1: Group by city FIRST ───────────────────────────────────────────
+    # We group BEFORE MMR so Camden's 4 zip codes become ONE city candidate.
+    # Previously, each zip consumed a separate MMR/county slot, saturating the
+    # results with sub-neighborhoods of the same city.
+    city_pool: dict[str, dict] = {}
+    for r in results:
+        city = r["city"]
+        if city not in city_pool:
+            city_pool[city] = {
+                **r,
+                "zips": [{
+                    "zip": r["zip"],
+                    "opportunity_score": r["opportunity_score"],
+                    "match_type": r["match_type"],
+                    "match_issues": r["match_issues"],
+                    "risk": r["risk"],
+                    "total_reviews": r["total_reviews"],
+                    "avg_price_tier": r["avg_price_tier"],
+                    "evidence": r["evidence"],
+                    "top_cuisine_gaps": r["top_cuisine_gaps"],
+                }],
+                "total_reviews": r["total_reviews"],
+                "_rep_zip": r["zip"],   # best-scoring zip used for distance calc
+            }
+        else:
+            city_pool[city]["zips"].append({
+                "zip": r["zip"],
+                "opportunity_score": r["opportunity_score"],
+                "match_type": r["match_type"],
+                "match_issues": r["match_issues"],
+                "risk": r["risk"],
+                "total_reviews": r["total_reviews"],
+                "avg_price_tier": r["avg_price_tier"],
+                "evidence": r["evidence"],
+                "top_cuisine_gaps": r["top_cuisine_gaps"],
+            })
+            existing_attrs = set(city_pool[city]["evidence"]["attribute_opportunities"])
+            for attr in r["evidence"]["attribute_opportunities"]:
+                existing_attrs.add(attr)
+            city_pool[city]["evidence"]["attribute_opportunities"] = list(existing_attrs)
+            city_pool[city]["total_reviews"] += r["total_reviews"]
+
+    # Ordered by best-zip score (results was already sorted)
+    city_candidates = list(city_pool.values())
+
+    # ── Step 2: MMR + County Cap — on city-level candidates ───────────────────
+    RELEVANCE_WEIGHT = 0.60
+    DIVERSITY_WEIGHT = 0.40
+
+    # Per-county caps: Camden County is intentionally limited to 1 city
+    # because it contains 27 of the 91 zip codes and would otherwise dominate.
+    # All other counties default to 2 cities each.
+    COUNTY_CAPS: dict[str, int] = {
+        "Camden":     0,   # excluded — too many zip codes, dominates results
+        "Gloucester": 2,
+        "Burlington": 2,
+        "Salem":      2,
+        "Mercer":     2,
+    }
+    DEFAULT_COUNTY_CAP = 2
+
+    def _geo_dist(zip_a: str, zip_b: str) -> float:
+        a = ZIP_COORDS.get(zip_a, (39.9, -75.0))
+        b = ZIP_COORDS.get(zip_b, (39.9, -75.0))
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+    max_score   = city_candidates[0]["opportunity_score"] if city_candidates else 1
+    min_score   = city_candidates[-1]["opportunity_score"] if city_candidates else 0
+    score_range = max(max_score - min_score, 0.001)
+
+    selected:      list[dict] = []
+    selected_zips: list[str]  = []
+    county_counts: dict[str, int] = {}
+    remaining = list(city_candidates)
+
+    while remaining and len(selected) < limit:
+        best     = None
+        best_mmr = float("-inf")
+
+        for cand in remaining:
+            rep    = cand["_rep_zip"]
+            county = ZIP_COUNTY.get(rep, "Unknown")
+            cap    = COUNTY_CAPS.get(county, DEFAULT_COUNTY_CAP)
+
+            if county_counts.get(county, 0) >= cap:
+                continue  # county cap
+
+            relevance = (cand["opportunity_score"] - min_score) / score_range
+
+            if not selected_zips:
+                max_sim = 0.0
+            else:
+                sims = [1.0 / (1.0 + _geo_dist(rep, sz)) for sz in selected_zips]
+                max_sim = max(sims)
+
+            mmr = RELEVANCE_WEIGHT * relevance - DIVERSITY_WEIGHT * max_sim
+            if mmr > best_mmr:
+                best_mmr = mmr
+                best = cand
+
+        if best is None:
+            best = remaining[0]   # fallback if all counties capped
+
+        selected.append(best)
+        selected_zips.append(best["_rep_zip"])
+        county = ZIP_COUNTY.get(best["_rep_zip"], "Unknown")
+        county_counts[county] = county_counts.get(county, 0) + 1
+        remaining.remove(best)
+
+    # Re-sort selected cities by score descending so UI shows best first
+    selected.sort(key=lambda x: -x["opportunity_score"])
+
+    # Strip internal helper key
+    grouped = [{k: v for k, v in c.items() if k != "_rep_zip"} for c in selected]
+
     return {
         "query": {
             "cuisine": cuisine,
@@ -598,8 +928,9 @@ def get_recommendations(
             "kid_friendly": kid_friendly,
             "min_market_size": min_market_size,
         },
-        "count": len(results),
-        "recommendations": results[:limit],
+        "count": len(grouped),
+        "total_analyzed": len(GAP_DATA),
+        "recommendations": grouped[:limit],
     }
 
 
