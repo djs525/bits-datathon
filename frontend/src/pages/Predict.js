@@ -387,13 +387,11 @@ function ResultPanel({ result }) {
                     }} />
                 </div>
 
-                {/* Signal Badge */}
                 <div style={{
                     background: sc.bg, border: `1px solid ${sc.color}22`,
                     borderRadius: 16, padding: "24px",
                     fontSize: 16, color: sc.color, lineHeight: 1.6, fontWeight: 600
                 }}>
-                    <span style={{ fontSize: 24, marginRight: 12 }}>{prob > 0.7 ? "✨" : prob > 0.4 ? "⚖️" : "⚠️"}</span>
                     {result.survival_signal?.signal}
                 </div>
             </div>
