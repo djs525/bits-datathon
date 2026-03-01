@@ -106,7 +106,8 @@ _load_survival_model()
 
 # ── Scoring helpers ───────────────────────────────────────────────────────────
 
-def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
+def _get_raw_opportunity_score(z: dict, cuisine_filter: str = None) -> float:
+    """Calculates the raw, un-normalized opportunity score."""
     if cuisine_filter:
         gaps = [g for g in z["top_cuisine_gaps"] if g["cuisine"] == cuisine_filter]
         top_gap = gaps[0]["gap_score"] if gaps else 0
@@ -114,13 +115,24 @@ def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
         top_gap = z["top_cuisine_gaps"][0]["gap_score"] if z["top_cuisine_gaps"] else 0
 
     market_size = math.log(z["total_reviews"] + 1)
-    # Cap attr_bonus at 10 so zips with many attribute mismatches don't
-    # dominate zips with genuine cuisine opportunities.
     attr_bonus = min(len(z["attr_gaps"]) * 2.5, 10.0)
-    
-    raw_score = top_gap * 0.6 + market_size * 2 + attr_bonus
-    # Bound to a 0.1-99.9 scale for UI consistency
-    return max(0.1, min(99.9, round(raw_score, 1)))
+    return top_gap * 0.6 + market_size * 2 + attr_bonus
+
+# Pre-calculate global min/max for normalization
+_ALL_RAW_SCORES = [
+    _get_raw_opportunity_score(z, g["cuisine"])
+    for z in GAP_DATA
+    for g in z["top_cuisine_gaps"]
+]
+MIN_RAW = min(_ALL_RAW_SCORES) if _ALL_RAW_SCORES else 0
+MAX_RAW = max(_ALL_RAW_SCORES) if _ALL_RAW_SCORES else 100
+RAW_RANGE = max(MAX_RAW - MIN_RAW, 0.001)
+
+def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
+    raw = _get_raw_opportunity_score(z, cuisine_filter)
+    # Linear normalization to 0.1 - 99.9
+    normalized = 0.1 + ((raw - MIN_RAW) / RAW_RANGE) * 99.8
+    return round(max(0.1, min(99.9, normalized)), 1)
 
 
 def risk_label(closure_rate: float) -> str:
