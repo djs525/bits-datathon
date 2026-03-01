@@ -924,7 +924,7 @@ def get_recommendations(
     return {
         "query": {
             "cuisine": cuisine,
-            "max_risk": max_risk,
+            "risk_levels": risk_levels,
             "max_price_tier": max_price_tier,
             "byob": byob,
             "delivery": delivery,
