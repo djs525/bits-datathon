@@ -214,39 +214,33 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
     # Base lookup — uses zip-market-level priors for review-history features.
     # NOTE: leakage features (lifespan_days, review velocities) are intentionally
     # excluded from training, so they won't appear in `feats` at all.
+    
+    # --- Market Baseline Computations ---
+    # We want to know how strict/long-winded the neighborhood is.
+    local_biz = RESTAURANTS_BY_ZIP.get(zip_context.get("zip", ""), [])
+    
+    # Calculate text length baselines dynamically
+    lengths = [r.get("avg_review_length") for r in local_biz if r.get("avg_review_length")]
+    zip_avg_len = sum(lengths) / len(lengths) if lengths else 350.0
+    
+    # Calculate sentiment baselines dynamically
+    sentiments = [r.get("sentiment_mean") for r in local_biz if r.get("sentiment_mean") is not None]
+    zip_sentiment_mean = sum(sentiments) / len(sentiments) if sentiments else 0.3
+    
+    # Star trends baselines (if needed)
+
     lookup = {
         # Yelp base (hypothetical for new concept)
-        "stars_yelp":              concept.get("expected_stars") or zip_avg_stars,
-        "review_count_yelp":       50,          # new restaurant prior
         "price_tier":              concept.get("price_tier", 2),
-        # Review count prior — new restaurant starts small
-        "review_count_computed":   0,
-        # Star distribution priors — use zip averages as baseline
-        "pct_1star":               0.08,
-        "pct_5star":               0.35,
-        "pct_negative":            0.12,
-        "pct_positive":            0.65,
-        "star_std":                0.9,
-        "star_slope":              0.0,
-        "stars_first_quartile":    zip_avg_stars,
-        "stars_last_quartile":     zip_avg_stars,
-        "star_delta":              0.0,
-        # Sentiment priors (neutral baseline)
-        "sentiment_mean":          0.3,
+        
+        # Sentiment priors (Market baseline)
+        "sentiment_mean":          zip_sentiment_mean,
         "sentiment_std":           0.4,
         "sentiment_slope":         0.0,
-        "sentiment_last_quartile": 0.3,
-        "pct_very_positive":       0.4,
-        "pct_very_negative":       0.08,
-        # Engagement priors
-        "useful_per_review":       0.5,
-        "funny_per_review":        0.1,
-        "cool_per_review":         0.2,
-        "total_engagement":        40,
-        "pct_engaged_reviews":     0.3,
-        # Text richness priors
-        "avg_review_length":       350,
-        "median_review_length":    300,
+        
+        # Text richness priors (Market baseline)
+        "avg_review_length":       zip_avg_len,
+        "median_review_length":    zip_avg_len * 0.9,
         # Zip-level market context features (Real features for the improved model)
         "zip_total_restaurants":   int(zip_context.get("total_restaurants", 0)),
         "zip_avg_stars":           float(zip_context.get("avg_stars", 3.5)),
@@ -798,8 +792,8 @@ def predict_survival(req: PredictRequest):
         "market_context": market,
         "cuisine_gap": cuisine_gap,
         "top_survival_factors": top_factors,
+        "shap_available": "shap_value" in top_factors[0] if top_factors else False,
         "cuisine_model_warning": cuisine_warning,
-        "shap_available": _shap_explainer is not None,
         "model_metrics": {
             "cv_roc_auc": _model_metadata["metrics"]["cv_roc_auc_mean"],
             "threshold_used": threshold,

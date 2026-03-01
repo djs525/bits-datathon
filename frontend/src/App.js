@@ -73,10 +73,10 @@ export default function App() {
             }}>📍</div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.5px", color: "var(--primary)" }}>
-                NJ <span style={{ color: "var(--text-main)" }}>Market Gap</span>
+                GSD <span style={{ color: "var(--text-main)" }}>.AI</span>
               </div>
               <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500, letterSpacing: "0.2px" }}>
-                RESTAURANT OPPORTUNITY DETECTOR
+                Garden State Detector
               </div>
             </div>
           </div>

@@ -48,20 +48,10 @@ LEAKAGE_FEATURES = {"lifespan_days", "review_velocity_30d", "review_velocity_90d
 
 NUMERIC_FEATURES = [
     # yelp base
-    "stars_yelp", "review_count_yelp", "price_tier",
-    # review count (how established the business is, not leaky because it's
-    # the Yelp-reported count, not our computed temporal window)
-    "review_count_computed",
-    # star trend (distribution-based, not time-window-based)
-    "pct_1star", "pct_5star", "pct_negative", "pct_positive",
-    "star_std", "star_slope", "stars_first_quartile", "stars_last_quartile", "star_delta",
-    # sentiment
+    "price_tier",
+    # sentiment environmental baselines
     "sentiment_mean", "sentiment_std", "sentiment_slope",
-    "sentiment_last_quartile", "pct_very_positive", "pct_very_negative",
-    # engagement
-    "useful_per_review", "funny_per_review", "cool_per_review",
-    "total_engagement", "pct_engaged_reviews",
-    # text
+    # text length environmental baselines
     "avg_review_length", "median_review_length",
     # market context (zip-level) — helps density/baseline capture
     "zip_total_restaurants", "zip_avg_stars", "zip_avg_price", "zip_closure_rate",

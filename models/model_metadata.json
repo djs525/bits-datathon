@@ -1,29 +1,9 @@
 {
   "feature_cols": [
-    "stars_yelp",
-    "review_count_yelp",
     "price_tier",
-    "review_count_computed",
-    "pct_1star",
-    "pct_5star",
-    "pct_negative",
-    "pct_positive",
-    "star_std",
-    "star_slope",
-    "stars_first_quartile",
-    "stars_last_quartile",
-    "star_delta",
     "sentiment_mean",
     "sentiment_std",
     "sentiment_slope",
-    "sentiment_last_quartile",
-    "pct_very_positive",
-    "pct_very_negative",
-    "useful_per_review",
-    "funny_per_review",
-    "cool_per_review",
-    "total_engagement",
-    "pct_engaged_reviews",
     "avg_review_length",
     "median_review_length",
     "zip_total_restaurants",
@@ -65,46 +45,46 @@
     "cuisine_vegan"
   ],
   "metrics": {
-    "cv_roc_auc_mean": 0.8535,
-    "cv_roc_auc_std": 0.0155,
-    "cv_avg_prec_mean": 0.9273,
-    "cv_avg_prec_std": 0.0128,
-    "best_threshold": 0.42,
-    "train_f1": 0.9745,
+    "cv_roc_auc_mean": 0.8156,
+    "cv_roc_auc_std": 0.0121,
+    "cv_avg_prec_mean": 0.9067,
+    "cv_avg_prec_std": 0.0084,
+    "best_threshold": 0.4,
+    "train_f1": 0.9445,
     "confusion_matrix": [
       [
-        867,
-        59
+        775,
+        151
       ],
       [
-        64,
-        2351
+        119,
+        2296
       ]
     ],
     "classification_report": {
       "0": {
-        "precision": 0.9312567132116004,
-        "recall": 0.9362850971922246,
-        "f1-score": 0.9337641357027464,
+        "precision": 0.8668903803131991,
+        "recall": 0.8369330453563715,
+        "f1-score": 0.8516483516483516,
         "support": 926.0
       },
       "1": {
-        "precision": 0.9755186721991701,
-        "recall": 0.9734989648033127,
-        "f1-score": 0.9745077720207254,
+        "precision": 0.938291785860237,
+        "recall": 0.9507246376811594,
+        "f1-score": 0.9444672974084739,
         "support": 2415.0
       },
-      "accuracy": 0.9631846752469321,
+      "accuracy": 0.9191858724932654,
       "macro avg": {
-        "precision": 0.9533876927053853,
-        "recall": 0.9548920309977686,
-        "f1-score": 0.9541359538617359,
+        "precision": 0.9025910830867181,
+        "recall": 0.8938288415187654,
+        "f1-score": 0.8980578245284128,
         "support": 3341.0
       },
       "weighted avg": {
-        "precision": 0.9632509158320677,
-        "recall": 0.9631846752469321,
-        "f1-score": 0.9632151628526773,
+        "precision": 0.9185019919253201,
+        "recall": 0.9191858724932654,
+        "f1-score": 0.9187413639233278,
         "support": 3341.0
       }
     }
