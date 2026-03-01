@@ -79,7 +79,7 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPage("decide")}>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.5px", color: "var(--primary)" }}>
-                GSD <span style={{ color: "var(--text-main)" }}>.AI</span>
+                GSD<span style={{ color: "var(--text-main)" }}>.AI</span>
               </div>
               <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500, letterSpacing: "0.2px" }}>
                 Garden State Detector
