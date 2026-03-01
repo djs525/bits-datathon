@@ -404,7 +404,7 @@ function ResultPanel({ result }) {
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
                             <StatBox value={`${Math.round(market.closure_rate * 100)}%`} label="Closure Rate"
                                 color={market.closure_rate > 0.35 ? "#C13515" : market.closure_rate > 0.2 ? "#E67E22" : "#008A05"} />
-                            <StatBox value={market.opportunity_score} label="Opp Score" color="var(--primary)" />
+                            <StatBox value={market.opportunity_score} label="Opportunity Score" color="var(--primary)" />
                         </div>
                         <RiskBadge risk={market.risk} />
                     </div>
@@ -431,16 +431,6 @@ function ResultPanel({ result }) {
                                     </span>
                                     <span style={{ fontSize: 14, color: "var(--text-main)", fontWeight: 700 }}>
                                         {gap.neighbor_demand} venues
-                                    </span>
-                                </div>
-                                <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-                                        Calculated Gap:
-                                    </span>
-                                    <span style={{
-                                        fontSize: 20, color: "var(--primary)", fontWeight: 800,
-                                    }}>
-                                        {gap.gap_score.toFixed(1)}
                                     </span>
                                 </div>
                             </div>
