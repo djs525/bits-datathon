@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { api } from "../api";
 import { ZipCard, Loader, EmptyState, ErrorCard } from "../components/ui";
 
@@ -16,11 +16,10 @@ export default function Recommendations({ cuisines }) {
 
     const toggleAttr = (a) => setAttrs(prev => ({ ...prev, [a]: !prev[a] }));
 
-    const run = async () => {
+    const run = async (overrides = {}) => {
         setLoading(true);
         setError(null);
 
-        // Map internal attribute names to API query parameters
         const apiParams = {
             cuisine: cuisine || undefined,
             max_risk: maxRisk || undefined,
@@ -30,7 +29,8 @@ export default function Recommendations({ cuisines }) {
             outdoor: attrs["Outdoor Seating"] || undefined,
             kid_friendly: attrs["Kid-Friendly"] || undefined,
             min_market_size: parseInt(minMarket, 10),
-            limit: 20
+            limit: 10,
+            ...overrides,
         };
 
         try {
@@ -40,6 +40,9 @@ export default function Recommendations({ cuisines }) {
             setError(e.message || "Recommendation engine failed. Is the backend running?");
         } finally { setLoading(false); }
     };
+
+    // Auto-fetch on first load with default params
+    useEffect(() => { run({ limit: 10 }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div style={{ padding: "48px 40px", maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.4s ease-out" }}>
@@ -163,7 +166,7 @@ export default function Recommendations({ cuisines }) {
                                     </div>
                                 </div>
                                 <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
-                                    NJ State · 47 Zip Codes Analyzed
+                                    NJ State · {results.total_analyzed || 91} Zip Codes Analyzed
                                 </div>
                             </div>
 
@@ -172,7 +175,7 @@ export default function Recommendations({ cuisines }) {
                                     <EmptyState icon="🔭" text="No high-confidence markets found with these exact filters.\nTry reducing price tier or increasing risk tolerance." />
                                 ) : (
                                     results.recommendations.map((z, idx) => (
-                                        <RecommendationCard key={z.zip} z={z} rank={idx + 1} />
+                                        <RecommendationCard key={z.city} z={z} rank={idx + 1} />
                                     ))
                                 )}
                             </div>
@@ -209,7 +212,20 @@ function RecommendationCard({ z, rank }) {
 
                 <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <h3 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-main)" }}>{z.city} <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{z.zip}</span></h3>
+                        <div>
+                            <h3 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-main)", marginBottom: 6 }}>{z.city}</h3>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {(z.zips || [{ zip: z.zip, match_type: z.match_type }]).map(zd => (
+                                    <span key={zd.zip} style={{
+                                        fontSize: 11, fontWeight: 700,
+                                        background: zd.match_type === "relaxed" ? "#FEF3C7" : "#F0FDF4",
+                                        color: zd.match_type === "relaxed" ? "#92400E" : "#166534",
+                                        border: `1px solid ${zd.match_type === "relaxed" ? "#FCD34D" : "#86EFAC"}`,
+                                        borderRadius: 6, padding: "2px 8px",
+                                    }}>{zd.zip}</span>
+                                ))}
+                            </div>
+                        </div>
                         <div style={{ textAlign: "right" }}>
                             <div style={{ fontSize: 24, fontWeight: 900, color: "var(--primary)", lineHeight: 1 }}>{z.opportunity_score}</div>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginTop: 4 }}>Match Score</div>
@@ -217,6 +233,11 @@ function RecommendationCard({ z, rank }) {
                     </div>
 
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        {z.match_type === "relaxed" && (
+                            <Badge color="#F59E0B">
+                                RELAXED MATCH
+                            </Badge>
+                        )}
                         <Badge color={z.risk === "low" ? "#008A05" : z.risk === "medium" ? "#E67E22" : "#C13515"}>
                             {z.risk.toUpperCase()} RISK
                         </Badge>
@@ -240,6 +261,33 @@ function RecommendationCard({ z, rank }) {
                                     <EvidenceRow label="Survival Forecast" value={(z.evidence.survival_probability * 100).toFixed(0) + "%"} highlight />
                                 )}
                             </div>
+
+                            {/* Per-zip breakdown if multiple zips grouped */}
+                            {z.zips && z.zips.length > 1 && (
+                                <div style={{ marginTop: 20 }}>
+                                    <Label>Zip Code Breakdown</Label>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                                        {z.zips.map(zd => (
+                                            <div key={zd.zip} style={{
+                                                display: "flex", justifyContent: "space-between",
+                                                background: "#F7F7F7", borderRadius: 10, padding: "10px 14px",
+                                                fontSize: 12, alignItems: "center"
+                                            }}>
+                                                <span style={{ fontWeight: 700, color: "var(--text-main)" }}>{zd.zip}</span>
+                                                <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{zd.total_reviews.toLocaleString()} reviews</span>
+                                                <span style={{ fontWeight: 800, color: "var(--primary)" }}>{zd.opportunity_score}</span>
+                                                <span style={{
+                                                    fontSize: 10, fontWeight: 700,
+                                                    background: zd.match_type === "relaxed" ? "#FEF3C7" : "#F0FDF4",
+                                                    color: zd.match_type === "relaxed" ? "#92400E" : "#166534",
+                                                    border: `1px solid ${zd.match_type === "relaxed" ? "#FCD34D" : "#86EFAC"}`,
+                                                    borderRadius: 6, padding: "2px 6px"
+                                                }}>{zd.match_type === "relaxed" ? "Relaxed" : "Exact"}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div>
@@ -259,6 +307,19 @@ function RecommendationCard({ z, rank }) {
                                     ))}
                                 </div>
                             </div>
+
+                            {z.match_type === "relaxed" && z.match_issues && z.match_issues.length > 0 && (
+                                <div style={{ marginTop: 24 }}>
+                                    <Label>Relaxed Criteria</Label>
+                                    <div style={{ marginTop: 12, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 16, padding: "16px" }}>
+                                        <ul style={{ margin: 0, paddingLeft: 20, color: "#92400E", fontSize: 13, fontWeight: 500 }}>
+                                            {z.match_issues.map((issue, i) => (
+                                                <li key={i} style={{ marginBottom: 4 }}>{issue}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

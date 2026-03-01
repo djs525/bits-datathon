@@ -5,7 +5,7 @@ import { ZipCard, Loader, EmptyState, SectionTitle, StatBox, RiskBadge, GapBar, 
 export default function Opportunities({ cuisines }) {
   const [filters, setFilters] = useState({
     cuisine: "", min_gap_score: 0, min_market_size: 0,
-    max_risk: "", sort: "opportunity_score", limit: 25,
+    max_risk: "", sort: "opportunity_score", limit: 91,
   });
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
