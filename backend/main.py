@@ -128,11 +128,11 @@ MIN_RAW = min(_ALL_RAW_SCORES) if _ALL_RAW_SCORES else 0
 MAX_RAW = max(_ALL_RAW_SCORES) if _ALL_RAW_SCORES else 100
 RAW_RANGE = max(MAX_RAW - MIN_RAW, 0.001)
 
-def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
+def opportunity_score(z: dict, cuisine_filter: str = None) -> int:
     raw = _get_raw_opportunity_score(z, cuisine_filter)
-    # Linear normalization to 0.1 - 99.9
-    normalized = 0.1 + ((raw - MIN_RAW) / RAW_RANGE) * 99.8
-    return round(max(0.1, min(99.9, normalized)), 1)
+    # Linear normalization to 0 - 100
+    normalized = ((raw - MIN_RAW) / RAW_RANGE) * 100
+    return math.floor(max(0, min(100, normalized)))
 
 
 def risk_label(closure_rate: float) -> str:
@@ -770,7 +770,7 @@ def get_recommendations(
         # Combined Master Score — cap raised to 99 so big gaps can fully surface
         base_master = gap_contribution + market_score + stability_score + weakspot_penalty + survival_bonus + attr_bonus + penalty
         jitter = _get_jitter(z["zip"], scale=1.5)   # reduced jitter so gap drives ranking
-        score = max(0.1, min(99.9, round(min(99.0, base_master) + jitter, 1)))
+        score = math.floor(max(0, min(100, base_master + jitter)))
 
         # Idea #3 — Penalty threshold: if cumulative penalty is small, still call it exact
         if penalty < 0 and penalty >= EXACT_PENALTY_THRESHOLD:
