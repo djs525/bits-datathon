@@ -614,12 +614,7 @@ def get_recommendations(
             accepted_risks = [r.strip().lower() for r in risk_levels.split(",")]
             z_risk = risk_label(z["closure_rate"])
             if z_risk not in accepted_risks:
-                # If they didn't explicitly select this risk level, strictly penalize/exclude
-                # Note: Tolerance buffer is less applicable here since they are explicitly
-                # selecting discrete bins rather than a "maximum threshold".
-                is_exact = False
-                penalty -= 25.0
-                match_issues.append(f"Excluded: Market risk is {z_risk.upper()} (not selected)")
+                continue
 
         # Idea #2 — Price with tolerance buffer
         if max_price_tier:
