@@ -326,7 +326,8 @@ def get_opportunities(
     min_gap_score: float = Query(0.0, description="Minimum gap score for top cuisine gap (0 = show all)"),
     min_market_size: int = Query(0, description="Minimum total reviews (0 = show all areas)"),
     max_risk: Optional[str] = Query(None, description="low | medium | high"),
-    sort: str = Query("opportunity_score", description="opportunity_score | market_size | stars | closure_risk"),
+    sort: str = Query("opportunity_score", description="opportunity_score | market_size | stars | closure_risk | distance_to_target"),
+    target_zip: Optional[str] = Query(None, description="Zip code to calculate distance from when sorting by distance"),
     limit: int = Query(91, le=91),
 ):
     """
@@ -357,11 +358,18 @@ def get_opportunities(
 
         results.append(format_zip(z, cuisine))
 
+    def _geo_dist(zip_a: str, zip_b: str) -> float:
+        a = ZIP_COORDS.get(zip_a, (39.9, -75.0))
+        b = ZIP_COORDS.get(zip_b, (39.9, -75.0))
+        # Simple Euclidean distance approximation for sorting
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
     sort_keys = {
         "opportunity_score": lambda x: -x["opportunity_score"],
         "market_size":       lambda x: -x["total_reviews"],
         "stars":             lambda x: -x["avg_stars"],
         "closure_risk":      lambda x: -x["closure_rate"],
+        "distance_to_target": lambda x: _geo_dist(x["zip"], target_zip) if target_zip else 0,
     }
     results.sort(key=sort_keys.get(sort, sort_keys["opportunity_score"]))
     return {"count": len(results), "results": results[:limit]}

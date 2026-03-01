@@ -4,8 +4,8 @@ import { ZipCard, Loader, EmptyState, ErrorCard } from "../components/ui";
 
 const ATTRS = ["BYOB", "Delivery", "Outdoor Seating", "Kid-Friendly"];
 
-export default function Recommendations({ cuisines }) {
-    const [cuisine, setCuisine] = useState("");
+export default function Recommendations({ cuisines, preload, onClearPreload, onNavigate }) {
+    const [cuisine, setCuisine] = useState(preload?.cuisine || "");
     const [attrs, setAttrs] = useState({});
     const [maxPrice, setMaxPrice] = useState("");
     const [minMarket, setMinMarket] = useState("0");
@@ -13,6 +13,7 @@ export default function Recommendations({ cuisines }) {
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [preloadBanner, setPreloadBanner] = useState(!!preload?.cuisine);
 
     const toggleAttr = (a) => setAttrs(prev => ({ ...prev, [a]: !prev[a] }));
 
@@ -41,8 +42,10 @@ export default function Recommendations({ cuisines }) {
         } finally { setLoading(false); }
     };
 
-    // Auto-fetch on first load with default params
-    useEffect(() => { run({ limit: 10 }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Auto-fetch: if preloaded with a cuisine, run with it; otherwise run with defaults
+    useEffect(() => {
+        run(preload?.cuisine ? { cuisine: preload.cuisine, limit: 10 } : { limit: 10 });
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div style={{ padding: "48px 40px", maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.4s ease-out" }}>
@@ -54,6 +57,24 @@ export default function Recommendations({ cuisines }) {
                     Our real-time engine scores and re-ranks every New Jersey market based on your unique restaurant concept and risk profile.
                 </p>
             </div>
+
+            {/* Preload banner from Decision Flow */}
+            {preloadBanner && (
+                <div style={{
+                    background: "#EFF6FF", border: "1px solid #93C5FD", borderRadius: 14,
+                    padding: "12px 20px", marginBottom: 28, display: "flex",
+                    justifyContent: "space-between", alignItems: "center", maxWidth: 1200,
+                    animation: "fadeIn 0.3s ease-out",
+                }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8" }}>
+                        Filtered from Decision Flow · Showing results for <strong>{preload?.cuisine}</strong>
+                    </span>
+                    <button onClick={() => { setPreloadBanner(false); if (onClearPreload) onClearPreload(); }} style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        fontSize: 16, color: "#93C5FD", lineHeight: 1, padding: "0 4px",
+                    }}>✕</button>
+                </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: 48, alignItems: "start" }}>
                 {/* Filter Panel */}
@@ -172,17 +193,17 @@ export default function Recommendations({ cuisines }) {
 
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                 {results.recommendations.length === 0 ? (
-                                    <EmptyState icon="🔭" text="No high-confidence markets found with these exact filters.\nTry reducing price tier or increasing risk tolerance." />
+                                    <EmptyState icon="" text="No high-confidence markets found with these exact filters.\nTry reducing price tier or increasing risk tolerance." />
                                 ) : (
                                     results.recommendations.map((z, idx) => (
-                                        <RecommendationCard key={z.city} z={z} rank={idx + 1} />
+                                        <RecommendationCard key={z.city} z={z} rank={idx + 1} cuisine={cuisine} onNavigate={onNavigate} />
                                     ))
                                 )}
                             </div>
                         </div>
                     ) : (
                         <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <EmptyState icon="🎯" text="Configure your restaurant concept to reveal\nthe most underserved markets in New Jersey." />
+                            <EmptyState icon="" text="Configure your restaurant concept to reveal\nthe most underserved markets in New Jersey." />
                         </div>
                     )}
                 </div>
@@ -191,7 +212,7 @@ export default function Recommendations({ cuisines }) {
     );
 }
 
-function RecommendationCard({ z, rank }) {
+function RecommendationCard({ z, rank, cuisine, onNavigate }) {
     const [expanded, setExpanded] = useState(false);
 
     return (
@@ -257,9 +278,6 @@ function RecommendationCard({ z, rank }) {
                                 <EvidenceRow label="Cuisine Gap Score" value={z.evidence.cuisine_gap_score} />
                                 <EvidenceRow label="Neighbor Demand" value={z.evidence.neighbor_demand} />
                                 <EvidenceRow label="Closure Rate" value={(z.closure_rate * 100).toFixed(1) + "%"} />
-                                {z.evidence.survival_probability && (
-                                    <EvidenceRow label="Survival Forecast" value={(z.evidence.survival_probability * 100).toFixed(0) + "%"} highlight />
-                                )}
                             </div>
 
                             {/* Per-zip breakdown if multiple zips grouped */}
@@ -322,6 +340,31 @@ function RecommendationCard({ z, rank }) {
                             )}
                         </div>
                     </div>
+
+                    {/* CTA */}
+                    {onNavigate && (() => {
+                        const bestZip = (z.zips && z.zips[0]?.zip) || z.zip || "";
+                        const preloadData = {
+                            zip: bestZip,
+                            cuisine: cuisine || z.primary_concept || "",
+                            price_tier: z.avg_price_tier || null,
+                        };
+                        return (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onNavigate("predict", preloadData); }}
+                                style={{
+                                    marginTop: 24, width: "100%", background: "var(--primary)",
+                                    border: "none", borderRadius: 14, color: "white",
+                                    fontSize: 14, fontWeight: 700, padding: "14px",
+                                    cursor: "pointer", boxShadow: "0 4px 12px rgba(255,56,92,0.25)",
+                                    transition: "all 0.2s",
+                                }}
+                            >
+                                Run Survival Prediction for {bestZip} →
+                            </button>
+                        );
+                    })()}
+
                 </div>
             )}
         </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { Loader, ErrorCard, SectionTitle, StatBox, RiskBadge } from "../components/ui";
 
@@ -89,26 +89,41 @@ const sel = {
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function Predict({ cuisines }) {
-    const [zipCode, setZipCode] = useState("");
-    const [cuisine, setCuisine] = useState("American");
-    const [priceTier, setPriceTier] = useState("");         // "" = smart default
-    const [noiseLevel, setNoiseLevel] = useState("");       // "" = smart default
-    // Concept overrides — "" means "use smart default"
+export default function Predict({ cuisines, preload, onClearPreload }) {
+    const [zipCode, setZipCode] = useState(preload?.zip || "");
+    const [cuisine, setCuisine] = useState(preload?.cuisine || "American");
+    const [priceTier, setPriceTier] = useState(preload?.price_tier ? String(preload.price_tier) : "");
+    const [noiseLevel, setNoiseLevel] = useState("average");
     const [attrs, setAttrs] = useState({
-        has_delivery: "", has_takeout: "", has_outdoor_seating: "",
-        good_for_kids: "", has_reservations: "", has_wifi: "",
-        has_alcohol: "", has_tv: "", good_for_groups: "",
+        has_delivery: preload?.has_delivery != null ? String(preload.has_delivery) : "0",
+        has_takeout: "0", has_outdoor_seating: preload?.has_outdoor_seating != null ? String(preload.has_outdoor_seating) : "0",
+        good_for_kids: preload?.good_for_kids != null ? String(preload.good_for_kids) : "0",
+        has_reservations: "0", has_wifi: "0", has_alcohol: "0", has_tv: "0", good_for_groups: "0",
     });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [preloadBanner, setPreloadBanner] = useState(!!preload);
+    const didAutoRun = useRef(false);
 
     const setAttr = (k, v) => setAttrs(prev => ({ ...prev, [k]: v }));
 
-    const handlePredict = async () => {
-        if (!zipCode || zipCode.length !== 5 || !/^\d+$/.test(zipCode)) {
+    // Auto-run prediction when arriving with preload data
+    useEffect(() => {
+        if (preload && preload.zip && !didAutoRun.current) {
+            didAutoRun.current = true;
+            // Small delay so the form visually renders first
+            setTimeout(() => handlePredict(preload.zip, preload.cuisine, preload.price_tier), 300);
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handlePredict = async (zipOverride, cuisineOverride, priceOverride) => {
+        const z = zipOverride || zipCode;
+        const c = cuisineOverride || cuisine;
+        const p = priceOverride !== undefined ? priceOverride : priceTier;
+
+        if (!z || String(z).length !== 5 || !/^\d+$/.test(String(z))) {
             setError("Please enter a valid 5-digit NJ zip code.");
             return;
         }
@@ -116,8 +131,8 @@ export default function Predict({ cuisines }) {
         setError(null);
         setResult(null);
         try {
-            const body = { zip_code: zipCode, cuisine };
-            if (priceTier) body.price_tier = parseFloat(priceTier);
+            const body = { zip_code: String(z), cuisine: c };
+            if (p) body.price_tier = parseFloat(p);
             if (noiseLevel) body.noise_level = noiseLevel;
             // Only include attribute overrides that were explicitly set
             Object.entries(attrs).forEach(([k, v]) => {
@@ -132,12 +147,8 @@ export default function Predict({ cuisines }) {
         }
     };
 
-    const handleExample = () => {
-        setZipCode("08053");
-        setCuisine("Japanese");
-        setPriceTier("2");
-        setNoiseLevel("quiet");
-    };
+    const handleRun = () => handlePredict();
+
 
     return (
         <div style={{ display: "grid", gridTemplateColumns: "450px 1fr", height: "100%", overflow: "hidden", background: "#F7F7F7" }}>
@@ -157,6 +168,24 @@ export default function Predict({ cuisines }) {
                 </div>
 
                 <div style={{ padding: "32px 40px", flex: 1 }}>
+
+                    {/* Preload banner from Decision Flow */}
+                    {preloadBanner && (
+                        <div style={{
+                            background: "#EFF6FF", border: "1px solid #93C5FD", borderRadius: 14,
+                            padding: "12px 16px", marginBottom: 24, display: "flex",
+                            justifyContent: "space-between", alignItems: "center",
+                            animation: "fadeIn 0.3s ease-out",
+                        }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8" }}>
+                                Pre-filled from Decision Flow · Running prediction automatically…
+                            </div>
+                            <button onClick={() => setPreloadBanner(false)} style={{
+                                background: "none", border: "none", cursor: "pointer",
+                                fontSize: 16, color: "#93C5FD", lineHeight: 1,
+                            }}>✕</button>
+                        </div>
+                    )}
 
                     <Row label="NJ Zip Code" hint="required">
                         <input
@@ -226,7 +255,7 @@ export default function Predict({ cuisines }) {
                                     <Toggle
                                         value={attrs[k]}
                                         onChange={v => setAttr(k, v)}
-                                        choices={[["", "Auto"], ["1", "Yes"], ["0", "No"]]}
+                                        choices={[["1", "Yes"], ["0", "No"]]}
                                     />
                                 </Row>
                             ))}
@@ -235,7 +264,7 @@ export default function Predict({ cuisines }) {
                                 <Toggle
                                     value={noiseLevel}
                                     onChange={setNoiseLevel}
-                                    choices={[["", "Auto"], ...NOISE_OPTIONS.map(n => [n, n.replace("_", " ")])]}
+                                    choices={NOISE_OPTIONS.map(n => [n, n.replace("_", " ")])}
                                 />
                             </Row>
                         </div>
@@ -244,7 +273,7 @@ export default function Predict({ cuisines }) {
                     {error && <ErrorCard message={error} />}
 
                     <button
-                        onClick={handlePredict}
+                        onClick={handleRun}
                         disabled={loading}
                         style={{
                             background: loading ? "#EBEBEB" : "var(--primary)",
@@ -258,17 +287,19 @@ export default function Predict({ cuisines }) {
                         {loading ? "Analyzing model..." : "Predict Survival Probability"}
                     </button>
 
-                    <button
-                        onClick={handleExample}
-                        style={{
-                            background: "transparent", border: "none", color: "var(--text-secondary)",
-                            fontSize: 12, fontWeight: 600,
-                            padding: "12px 0", cursor: "pointer", width: "100%", marginTop: 8,
-                            textDecoration: "underline"
-                        }}
-                    >
-                        Try example: Japanese · 08053
-                    </button>
+                    {!preloadBanner && (
+                        <button
+                            onClick={() => { setZipCode("08053"); setCuisine("Japanese"); setPriceTier("2"); }}
+                            style={{
+                                background: "transparent", border: "none", color: "var(--text-secondary)",
+                                fontSize: 12, fontWeight: 600,
+                                padding: "12px 0", cursor: "pointer", width: "100%", marginTop: 8,
+                                textDecoration: "underline"
+                            }}
+                        >
+                            Try example: Japanese · 08053
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -284,7 +315,7 @@ export default function Predict({ cuisines }) {
                                 justifyContent: "center", height: "100%", gap: 20, color: "var(--text-secondary)",
                                 animation: "fadeIn 0.6s ease-out"
                             }}>
-                                <div style={{ fontSize: 64 }}></div>
+
                                 <div style={{ fontSize: 18, textAlign: "center", lineHeight: 1.6, fontWeight: 500, color: "var(--text-main)" }}>
                                     Your survival prediction <br /> will appear here
                                 </div>

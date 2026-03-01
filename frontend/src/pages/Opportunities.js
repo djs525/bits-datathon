@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { ZipCard, Loader, EmptyState, SectionTitle, StatBox, RiskBadge, GapBar, ErrorCard } from "../components/ui";
 import Map from "../components/Map";
 
-export default function Opportunities({ cuisines }) {
+export default function Opportunities({ cuisines, preload, onClearPreload }) {
   const [filters, setFilters] = useState({
     cuisine: "", min_gap_score: 0, min_market_size: 0,
-    max_risk: "", sort: "opportunity_score", limit: 91,
+    max_risk: "", sort: "opportunity_score", target_zip: "", limit: 91,
   });
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(preload?.zip || null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -38,6 +38,11 @@ export default function Opportunities({ cuisines }) {
       setError(e.message || `Failed to load details for ${zip}.`);
     } finally { setDetailLoading(false); }
   };
+
+  // Auto-load detail panel when arriving from Decision Flow with a zip pre-selected
+  useEffect(() => {
+    if (preload?.zip) selectZip(preload.zip);
+  }, []); // eslint-disable-line
 
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
@@ -72,7 +77,17 @@ export default function Opportunities({ cuisines }) {
               <option value="market_size">Sort by Market Size</option>
               <option value="stars">Sort by Quality</option>
               <option value="closure_risk">Sort by Risk</option>
+              <option value="distance_to_target">Sort by Distance</option>
             </select>
+            {filters.sort === "distance_to_target" && (
+              <input
+                type="text"
+                placeholder="Target Zip Code (e.g. 08053)"
+                value={filters.target_zip || ""}
+                onChange={e => set("target_zip", e.target.value)}
+                style={{ ...sel, background: "white" }}
+              />
+            )}
             <button onClick={fetch} style={btn}>Search</button>
           </div>
         </div>
@@ -82,7 +97,7 @@ export default function Opportunities({ cuisines }) {
           {loading ? <Loader text="Analyzing NJ markets…" /> :
             error ? <ErrorCard message={error} /> :
               !results ? null :
-                results.results.length === 0 ? <EmptyState icon="📍" text={`No results for these filters.\nTry broadening your search.`} /> :
+                results.results.length === 0 ? <EmptyState icon="" text={`No results for these filters.\nTry broadening your search.`} /> :
                   <>
                     <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
                       {results.count} locations found in New Jersey
@@ -112,13 +127,64 @@ export default function Opportunities({ cuisines }) {
       </div>
 
       {/* ── Right: detail ── */}
-      <div style={{ overflowY: "auto", background: "white", borderLeft: "1px solid var(--border)" }}>
-        {!selected ?
-          <EmptyState icon="🏢" text="Select a zip code to see market insights for your concept" /> :
-          detailLoading ? <Loader text="Fetching market data…" /> :
-            detail ? <DetailPanel d={detail} /> : null}
+      <div style={{ position: "relative", overflow: "hidden", background: "white", borderLeft: "1px solid var(--border)" }}>
+        {!selected ? (
+          <EmptyState icon="" text="Select a zip code to see market insights for your concept" />
+        ) : detailLoading ? (
+          <Loader text="Fetching market data…" />
+        ) : detail ? (
+          <ScrollableDetailPanel d={detail} />
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function ScrollableDetailPanel({ d }) {
+  const scrollRef = useRef(null);
+  const [showArrow, setShowArrow] = useState(true);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    // Hide arrow if we are within 50px of the bottom
+    setShowArrow(scrollTop + clientHeight < scrollHeight - 50);
+  };
+
+  // Re-check scroll anytime `d` changes to see if we even need the arrow
+  useEffect(() => {
+    setTimeout(handleScroll, 100);
+  }, [d]);
+
+  return (
+    <>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        style={{ height: "100%", overflowY: "auto", paddingBottom: "80px" }}
+      >
+        <DetailPanel d={d} />
+      </div>
+
+      {/* Floating Scroll Indicator */}
+      <div style={{
+        position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)",
+        background: "rgba(34,34,34,0.9)", color: "white", padding: "10px 20px",
+        borderRadius: 30, fontSize: 13, fontWeight: 600,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        display: "flex", alignItems: "center", gap: 8,
+        opacity: showArrow ? 1 : 0, transition: "opacity 0.3s ease",
+        pointerEvents: "none", zIndex: 10,
+      }}>
+        Scroll for details <span style={{ animation: "bounce 1.5s infinite" }}>↓</span>
+      </div>
+      <style>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(3px); }
+        }
+      `}</style>
+    </>
   );
 }
 

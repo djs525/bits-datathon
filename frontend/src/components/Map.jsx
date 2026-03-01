@@ -43,9 +43,9 @@ const NJ_ZIP_COORDS = {
 };
 
 const RISK_COLORS = {
-    low:    { fill: "#00A699", stroke: "#009688" },
+    low: { fill: "#00A699", stroke: "#009688" },
     medium: { fill: "#FC642D", stroke: "#E5572A" },
-    high:   { fill: "#FF385C", stroke: "#E02D50" },
+    high: { fill: "#FF385C", stroke: "#E02D50" },
 };
 
 function ChangeView({ center, zoom }) {
