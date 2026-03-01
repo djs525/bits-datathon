@@ -156,7 +156,7 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
             {/* ── Left: form ── */}
             <div style={{
                 background: "var(--glass-bg)", borderRight: "1px solid var(--border)", overflowY: "auto",
-                display: "flex", flexDirection: "column",
+                display: "flex", flexDirection: "column", boxShadow: "var(--inner-border)",
                 backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)"
             }}>
                 <div style={{ padding: "32px 40px", borderBottom: "1px solid var(--border)" }}>
@@ -274,10 +274,11 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
                     {error && <ErrorCard message={error} />}
 
                     <button
+                        className="active-scale"
                         onClick={handleRun}
                         disabled={loading}
                         style={{
-                            background: loading ? "#EBEBEB" : "var(--primary)",
+                            background: loading ? "#EBEBEB" : "var(--gradient-primary)",
                             border: "none", borderRadius: 20, color: loading ? "var(--text-secondary)" : "white",
                             fontSize: 16, fontWeight: 800,
                             padding: "16px 0", cursor: loading ? "not-allowed" : "pointer",

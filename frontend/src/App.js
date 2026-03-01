@@ -45,7 +45,9 @@ export default function App() {
           --header-border: rgba(0, 0, 0, 0.05);
           --shadow: 0 8px 32px rgba(0,0,0,0.06);
           --glass-bg: rgba(255, 255, 255, 0.65);
-          --glass-filter: saturate(180%) blur(20px);
+          --glass-filter: saturate(200%) blur(30px);
+          --inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+          --gradient-primary: linear-gradient(135deg, #FF385C 0%, #E61E4D 100%);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -69,8 +71,19 @@ export default function App() {
           to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Fluid micro-interactions for clicks */
+        .active-scale:active {
+          transform: scale(0.96) !important;
+          transition: transform 0.1s cubic-bezier(0.2, 0, 0, 1) !important;
+        }
+
         .leaflet-control-attribution a[href="https://leafletjs.com"] span {
           display: none !important;
+        }
+
+        /* Float effect on map markers */
+        .leaflet-interactive {
+          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
         }
       `}</style>
 

@@ -47,9 +47,14 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 450px", height: "100%", overflow: "hidden", background: "#F7F7F7" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "380px 1fr 450px", height: "100%", overflow: "hidden", background: "#F7F7F7" }}>
       {/* ── Left: filters + results ── */}
-      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid var(--border)", background: "var(--glass-bg)", backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)" }}>
+      <div style={{
+        width: 380, height: "100%", background: "var(--glass-bg)",
+        borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column",
+        backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)",
+        boxShadow: "var(--inner-border)", zIndex: 10, position: "relative", overflow: "hidden"
+      }}>
         {/* filters */}
         <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -74,7 +79,7 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
                         ? filters.risk_levels.filter(r => r !== v)
                         : [...filters.risk_levels, v]
                       );
-                    }} style={{
+                    }} className="active-scale" style={{
                       background: isSelected ? "var(--text-main)" : "white",
                       border: `1px solid ${isSelected ? "var(--text-main)" : "var(--border)"}`,
                       color: isSelected ? "white" : "var(--text-secondary)",

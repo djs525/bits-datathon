@@ -80,7 +80,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
                 {/* Filter Panel */}
                 <div style={{
                     background: "var(--glass-bg)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 24,
-                    padding: "32px", boxShadow: "var(--shadow)", position: "sticky", top: 24,
+                    padding: "32px", boxShadow: "var(--shadow), var(--inner-border)", position: "sticky", top: 24,
                     backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)"
                 }}>
                     <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-main)", marginBottom: 24 }}>
@@ -119,7 +119,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
                     <Row label="Target Price Level">
                         <div style={{ display: "flex", gap: 8 }}>
                             {[["", "Any"], ["1", "$"], ["2", "$$"], ["3", "$$$"], ["4", "$$$$"]].map(([v, label]) => (
-                                <button key={v} onClick={() => setMaxPrice(v)} style={{
+                                <button key={v} onClick={() => setMaxPrice(v)} className="active-scale" style={{
                                     background: maxPrice === v ? "var(--text-main)" : "white",
                                     border: `1px solid ${maxPrice === v ? "var(--text-main)" : "var(--border)"}`,
                                     color: maxPrice === v ? "white" : "var(--text-main)",
@@ -140,7 +140,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
                                     <button key={v} onClick={() => {
                                         if (isSelected) setRiskLevels(prev => prev.filter(r => r !== v));
                                         else setRiskLevels(prev => [...prev, v]);
-                                    }} style={{
+                                    }} className="active-scale" style={{
                                         background: isSelected ? "var(--text-main)" : "white",
                                         border: `1px solid ${isSelected ? "var(--text-main)" : "var(--border)"}`,
                                         color: isSelected ? "white" : "var(--text-secondary)",
@@ -165,7 +165,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
                         </select>
                     </Row>
 
-                    <button onClick={run} disabled={loading} style={{
+                    <button onClick={run} disabled={loading} className="active-scale" style={{
                         background: "var(--primary)", border: "none", borderRadius: 16,
                         color: "white", fontSize: 16, fontWeight: 700,
                         padding: "18px", cursor: "pointer", marginTop: 12, width: "100%",
@@ -364,6 +364,7 @@ function RecommendationCard({ z, rank, cuisine, onNavigate }) {
                         return (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onNavigate("predict", preloadData); }}
+                                className="active-scale"
                                 style={{
                                     marginTop: 24, width: "100%", background: "var(--primary)",
                                     border: "none", borderRadius: 14, color: "white",
