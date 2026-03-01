@@ -260,7 +260,7 @@ function RecommendationCard({ z, rank, cuisine, onNavigate }) {
                             </div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--primary)", lineHeight: 1 }}>{z.opportunity_score}</div>
+                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--primary)", lineHeight: 1 }}>{z.match_score}</div>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", marginTop: 4 }}>Match Score</div>
                         </div>
                     </div>
@@ -290,6 +290,7 @@ function RecommendationCard({ z, rank, cuisine, onNavigate }) {
                                 <EvidenceRow label="Cuisine Gap Score" value={z.evidence.cuisine_gap_score} />
                                 <EvidenceRow label="Neighbor Demand" value={z.evidence.neighbor_demand} />
                                 <EvidenceRow label="Closure Rate" value={(z.closure_rate * 100).toFixed(1) + "%"} />
+                                <EvidenceRow label="Market Opportunity Score" value={z.opportunity_score} highlight />
                             </div>
 
                             {/* Per-zip breakdown if multiple zips grouped */}
@@ -305,7 +306,7 @@ function RecommendationCard({ z, rank, cuisine, onNavigate }) {
                                             }}>
                                                 <span style={{ fontWeight: 700, color: "var(--text-main)" }}>{zd.zip}</span>
                                                 <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{zd.total_reviews.toLocaleString()} reviews</span>
-                                                <span style={{ fontWeight: 800, color: "var(--primary)" }}>{zd.opportunity_score}</span>
+                                                <span style={{ fontWeight: 800, color: "var(--primary)" }}>{zd.match_score}</span>
                                                 <span style={{
                                                     fontSize: 10, fontWeight: 700,
                                                     background: zd.match_type === "relaxed" ? "#FEF3C7" : "#F0FDF4",

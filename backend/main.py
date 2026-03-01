@@ -777,7 +777,8 @@ def get_recommendations(
         results.append({
             "zip": z["zip"],
             "city": z["city"],
-            "opportunity_score": score,
+            "match_score": score,
+            "opportunity_score": opportunity_score(z, cuisine),
             "match_type": "exact" if is_exact else "relaxed",
             "match_issues": match_issues,
             "primary_concept": primary,
@@ -799,7 +800,7 @@ def get_recommendations(
         })
 
     # Sort by score desc
-    results.sort(key=lambda x: -x["opportunity_score"])
+    results.sort(key=lambda x: -x["match_score"])
 
     # ── Step 1: Group by city FIRST ───────────────────────────────────────────
     # We group BEFORE MMR so Camden's 4 zip codes become ONE city candidate.
@@ -813,6 +814,7 @@ def get_recommendations(
                 **r,
                 "zips": [{
                     "zip": r["zip"],
+                    "match_score": r["match_score"],
                     "opportunity_score": r["opportunity_score"],
                     "match_type": r["match_type"],
                     "match_issues": r["match_issues"],
@@ -828,6 +830,7 @@ def get_recommendations(
         else:
             city_pool[city]["zips"].append({
                 "zip": r["zip"],
+                "match_score": r["match_score"],
                 "opportunity_score": r["opportunity_score"],
                 "match_type": r["match_type"],
                 "match_issues": r["match_issues"],
@@ -867,8 +870,8 @@ def get_recommendations(
         b = ZIP_COORDS.get(zip_b, (39.9, -75.0))
         return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
 
-    max_score   = city_candidates[0]["opportunity_score"] if city_candidates else 1
-    min_score   = city_candidates[-1]["opportunity_score"] if city_candidates else 0
+    max_score   = city_candidates[0]["match_score"] if city_candidates else 1
+    min_score   = city_candidates[-1]["match_score"] if city_candidates else 0
     score_range = max(max_score - min_score, 0.001)
 
     selected:      list[dict] = []
@@ -888,7 +891,7 @@ def get_recommendations(
             if county_counts.get(county, 0) >= cap:
                 continue  # county cap
 
-            relevance = (cand["opportunity_score"] - min_score) / score_range
+            relevance = (cand["match_score"] - min_score) / score_range
 
             if not selected_zips:
                 max_sim = 0.0
@@ -911,7 +914,7 @@ def get_recommendations(
         remaining.remove(best)
 
     # Re-sort selected cities by score descending so UI shows best first
-    selected.sort(key=lambda x: -x["opportunity_score"])
+    selected.sort(key=lambda x: -x["match_score"])
 
     # Strip internal helper key
     grouped = [{k: v for k, v in c.items() if k != "_rep_zip"} for c in selected]
