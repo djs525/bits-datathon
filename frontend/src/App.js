@@ -5,9 +5,9 @@ import Recommendations from "./pages/Recommendations";
 import Predict from "./pages/Predict";
 
 const PAGES = [
-  { id: "opportunities", label: "Market Gaps", icon: "📍" },
-  { id: "recommendations", label: "Recommendations", icon: "🎯" },
-  { id: "predict", label: "Survival Predictor", icon: "🧠" },
+  { id: "opportunities", label: "Market Gaps", icon: "" },
+  { id: "recommendations", label: "Recommendations", icon: "" },
+  { id: "predict", label: "Survival Predictor", icon: "" },
 ];
 
 export default function App() {

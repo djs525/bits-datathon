@@ -96,7 +96,7 @@ export default function Opportunities({ cuisines }) {
       {/* ── Right: detail ── */}
       <div style={{ overflowY: "auto", background: "white", borderLeft: "1px solid var(--border)" }}>
         {!selected ?
-          <EmptyState icon="🏢" text="Select a zip code to see\nmarket insights for your concept" /> :
+          <EmptyState icon="🏢" text="Select a zip code to see market insights for your concept" /> :
           detailLoading ? <Loader text="Fetching market data…" /> :
             detail ? <DetailPanel d={detail} /> : null}
       </div>

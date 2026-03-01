@@ -284,7 +284,7 @@ export default function Predict({ cuisines }) {
                                 justifyContent: "center", height: "100%", gap: 20, color: "var(--text-secondary)",
                                 animation: "fadeIn 0.6s ease-out"
                             }}>
-                                <div style={{ fontSize: 64 }}>🧠</div>
+                                <div style={{ fontSize: 64 }}></div>
                                 <div style={{ fontSize: 18, textAlign: "center", lineHeight: 1.6, fontWeight: 500, color: "var(--text-main)" }}>
                                     Your survival prediction <br /> will appear here
                                 </div>
