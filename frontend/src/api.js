@@ -7,7 +7,10 @@ async function get(path, params = {}) {
   ).toString();
   const url = `${BASE}${path}${qs ? "?" + qs : ""}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error("This zip code isn't in our dataset yet. Try a different NJ location.");
+    throw new Error(`Something went wrong (${res.status}). Please try again.`);
+  }
   return res.json();
 }
 
@@ -17,7 +20,10 @@ async function post(path, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error("This zip code isn't in our dataset yet. Try a different NJ location.");
+    throw new Error(`Something went wrong (${res.status}). Please try again.`);
+  }
   return res.json();
 }
 
