@@ -155,10 +155,11 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
 
             {/* ── Left: form ── */}
             <div style={{
-                background: "white", borderRight: "1px solid var(--border)", overflowY: "auto",
+                background: "var(--glass-bg)", borderRight: "1px solid var(--border)", overflowY: "auto",
                 display: "flex", flexDirection: "column",
+                backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)"
             }}>
-                <div style={{ padding: "32px 40px", borderBottom: "1px solid var(--border)", background: "white" }}>
+                <div style={{ padding: "32px 40px", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
                         Survival Predictor
                     </div>
@@ -277,12 +278,14 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
                         disabled={loading}
                         style={{
                             background: loading ? "#EBEBEB" : "var(--primary)",
-                            border: "none", borderRadius: 14, color: loading ? "var(--text-secondary)" : "white",
+                            border: "none", borderRadius: 20, color: loading ? "var(--text-secondary)" : "white",
                             fontSize: 16, fontWeight: 800,
                             padding: "16px 0", cursor: loading ? "not-allowed" : "pointer",
-                            width: "100%", transition: "all 0.2s",
-                            boxShadow: loading ? "none" : "0 4px 12px rgba(255, 56, 92, 0.25)"
+                            width: "100%", transition: "all 0.3s cubic-bezier(0.2, 0, 0, 1)",
+                            boxShadow: loading ? "none" : "0 4px 16px rgba(255, 56, 92, 0.25)"
                         }}
+                        onMouseOver={e => !loading && (e.currentTarget.style.transform = "scale(0.98)")}
+                        onMouseOut={e => !loading && (e.currentTarget.style.transform = "scale(1)")}
                     >
                         {loading ? "Analyzing model..." : "Predict Survival Probability"}
                     </button>
@@ -304,7 +307,7 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
             </div>
 
             {/* ── Right: results ── */}
-            <div style={{ overflowY: "auto", background: "white" }}>
+            <div style={{ overflowY: "auto", background: "var(--bg)" }}>
                 {loading
                     ? <Loader text="Running XGBoost prediction + SHAP analysis…" />
                     : result

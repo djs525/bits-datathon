@@ -11,15 +11,15 @@ export function ZipCard({ z, selected, onClick }) {
         <div
             onClick={onClick}
             style={{
-                background: "var(--bg)",
-                border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}`,
-                borderRadius: 16, padding: "20px 24px", cursor: onClick ? "pointer" : "default",
-                transition: "all 0.25s cubic-bezier(0.2, 0, 0, 1)",
-                boxShadow: selected ? "0 6px 20px rgba(255,56,92,0.15)" : "0 2px 8px rgba(0,0,0,0.04)",
+                background: "rgba(255,255,255,0.8)",
+                border: `1px solid ${selected ? "var(--primary)" : "rgba(255,255,255,0.4)"}`,
+                borderRadius: 20, padding: "20px 24px", cursor: onClick ? "pointer" : "default",
+                transition: "all 0.3s cubic-bezier(0.2, 0, 0, 1)",
+                boxShadow: selected ? "0 8px 32px rgba(255,56,92,0.15)" : "var(--shadow)",
                 position: "relative",
             }}
-            onMouseOver={e => !selected && (e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,0.08)")}
-            onMouseOut={e => !selected && (e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)")}
+            onMouseOver={e => !selected && (e.currentTarget.style.transform = "scale(0.99)")}
+            onMouseOut={e => !selected && (e.currentTarget.style.transform = "scale(1)")}
         >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
@@ -105,9 +105,9 @@ export function GapBar({ value, max }) {
 export function StatBox({ value, label, color = "var(--text-main)" }) {
     return (
         <div style={{
-            background: "#FFFFFF", border: "1px solid var(--border)",
-            borderRadius: 12, padding: "16px", textAlign: "left",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
+            background: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.5)",
+            borderRadius: 20, padding: "16px", textAlign: "left",
+            boxShadow: "var(--shadow)"
         }}>
             <div style={{
                 fontSize: 22, fontWeight: 800, color, lineHeight: 1.2,
@@ -184,9 +184,10 @@ export function ErrorCard({ message }) {
     return (
         <div style={{
             background: "#FFF0F0", border: "1px solid rgba(193, 53, 21, 0.1)",
-            borderRadius: 12, padding: "16px 20px", margin: "16px 0",
+            borderRadius: 20, padding: "16px 20px", margin: "16px 0",
             fontSize: 14, color: "#C13515", fontWeight: 500,
-            display: "flex", gap: 12, alignItems: "center"
+            display: "flex", gap: 12, alignItems: "center",
+            boxShadow: "var(--shadow)"
         }}>
             <span style={{ fontSize: 18 }}>⚠️</span>
             {message || "An error occurred. Is the backend running?"}

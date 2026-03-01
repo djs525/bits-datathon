@@ -79,8 +79,9 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
             <div style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: 48, alignItems: "start" }}>
                 {/* Filter Panel */}
                 <div style={{
-                    background: "white", border: "1px solid var(--border)", borderRadius: 24,
-                    padding: "32px", boxShadow: "var(--shadow)", position: "sticky", top: 24
+                    background: "var(--glass-bg)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 24,
+                    padding: "32px", boxShadow: "var(--shadow)", position: "sticky", top: 24,
+                    backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)"
                 }}>
                     <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-main)", marginBottom: 24 }}>
                         Your Concept
@@ -225,11 +226,14 @@ function RecommendationCard({ z, rank, cuisine, onNavigate }) {
 
     return (
         <div style={{
-            background: "white", border: "1px solid var(--border)", borderRadius: 24,
+            background: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.5)", borderRadius: 24,
             padding: "24px 32px", cursor: "pointer", transition: "all 0.3s cubic-bezier(0.2, 0, 0, 1)",
-            boxShadow: expanded ? "0 12px 32px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.02)",
-            transform: expanded ? "translateY(-2px)" : "none",
-        }} onClick={() => setExpanded(!expanded)}>
+            boxShadow: expanded ? "0 16px 40px rgba(0,0,0,0.08)" : "var(--shadow)",
+            transform: expanded ? "translateY(-2px)" : "scale(1)",
+        }} onClick={() => setExpanded(!expanded)}
+            onMouseOver={e => !expanded && (e.currentTarget.style.transform = "scale(0.99)")}
+            onMouseOut={e => !expanded && (e.currentTarget.style.transform = "scale(1)")}
+        >
             <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
                 <div style={{
                     width: 48, height: 48, borderRadius: "50%", background: rank <= 3 ? "var(--primary)" : "#F7F7F7",

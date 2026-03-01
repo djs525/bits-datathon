@@ -49,9 +49,9 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 450px", height: "100%", overflow: "hidden", background: "#F7F7F7" }}>
       {/* ── Left: filters + results ── */}
-      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid var(--border)", background: "white" }}>
+      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid var(--border)", background: "var(--glass-bg)", backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)" }}>
         {/* filters */}
-        <div style={{ padding: "20px", borderBottom: "1px solid var(--border)", background: "white" }}>
+        <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Find your next location
           </div>
@@ -116,7 +116,7 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
         </div>
 
         {/* results */}
-        <div style={{ overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, flex: 1, background: "#F7F7F7" }}>
+        <div style={{ overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
           {loading ? <Loader text="Analyzing NJ markets…" /> :
             error ? <ErrorCard message={error} /> :
               !results ? null :

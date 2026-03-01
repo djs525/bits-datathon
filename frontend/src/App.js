@@ -36,14 +36,16 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         
         :root {
-          --bg: #FFFFFF;
-          --text-main: #222222;
-          --text-secondary: #717171;
+          --bg: #F5F5F7;
+          --text-main: #1D1D1F;
+          --text-secondary: #86868B;
           --primary: #FF385C;
-          --border: #DDDDDD;
-          --header-bg: #FFFFFF;
-          --header-border: #EBEBEB;
-          --shadow: 0 6px 16px rgba(0,0,0,0.12);
+          --border: #E5E5EA;
+          --header-bg: rgba(255, 255, 255, 0.75);
+          --header-border: rgba(0, 0, 0, 0.05);
+          --shadow: 0 8px 32px rgba(0,0,0,0.06);
+          --glass-bg: rgba(255, 255, 255, 0.65);
+          --glass-filter: saturate(180%) blur(20px);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -78,7 +80,8 @@ export default function App() {
           display: "flex", alignItems: "center", gap: 32,
           padding: "0 40px", height: 80, flexShrink: 0,
           background: "var(--header-bg)", borderBottom: "1px solid var(--header-border)",
-          boxShadow: "0 1px 12px rgba(0,0,0,0.05)", zIndex: 100,
+          backdropFilter: "var(--glass-filter)", WebkitBackdropFilter: "var(--glass-filter)",
+          boxShadow: "0 1px 12px rgba(0,0,0,0.02)", zIndex: 100,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPage("decide")}>
             <div>
