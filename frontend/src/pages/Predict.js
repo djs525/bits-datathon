@@ -95,10 +95,10 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
     const [priceTier, setPriceTier] = useState(preload?.price_tier ? String(preload.price_tier) : "");
     const [noiseLevel, setNoiseLevel] = useState("average");
     const [attrs, setAttrs] = useState({
-        has_delivery: preload?.has_delivery != null ? String(preload.has_delivery) : "",
-        has_takeout: "", has_outdoor_seating: preload?.has_outdoor_seating != null ? String(preload.has_outdoor_seating) : "",
-        good_for_kids: preload?.good_for_kids != null ? String(preload.good_for_kids) : "",
-        has_reservations: "", has_wifi: "", has_alcohol: "", has_tv: "", good_for_groups: "",
+        has_delivery: preload?.has_delivery != null ? String(preload.has_delivery) : "0",
+        has_takeout: "0", has_outdoor_seating: preload?.has_outdoor_seating != null ? String(preload.has_outdoor_seating) : "0",
+        good_for_kids: preload?.good_for_kids != null ? String(preload.good_for_kids) : "0",
+        has_reservations: "0", has_wifi: "0", has_alcohol: "0", has_tv: "0", good_for_groups: "0",
     });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -237,7 +237,7 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
                             animation: "fadeIn 0.3s ease-out"
                         }}>
                             <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 20, fontWeight: 700, textTransform: "uppercase" }}>
-                                Smart defaults will be used for auto
+                                Attributes are set to 'No' by default
                             </div>
 
                             {[
@@ -255,7 +255,7 @@ export default function Predict({ cuisines, preload, onClearPreload }) {
                                     <Toggle
                                         value={attrs[k]}
                                         onChange={v => setAttr(k, v)}
-                                        choices={[["", "Auto"], ["1", "Yes"], ["0", "No"]]}
+                                        choices={[["1", "Yes"], ["0", "No"]]}
                                     />
                                 </Row>
                             ))}

@@ -227,18 +227,6 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
     sentiments = [r.get("sentiment_mean") for r in local_biz if r.get("sentiment_mean") is not None]
     zip_sentiment_mean = sum(sentiments) / len(sentiments) if sentiments else 0.3
     
-    # helper to fetch smart defaults for attributes
-    def get_val(key: str):
-        c_str = concept.get("cuisine", "")
-        # exact match first
-        if c_str in CUISINE_DEFAULTS:
-            return CUISINE_DEFAULTS[c_str].get(key, GLOBAL_DEFAULTS[key])
-        # substring match
-        for ck in CUISINE_KEYWORDS:
-            if ck.lower() in c_str.lower() and ck in CUISINE_DEFAULTS:
-                return CUISINE_DEFAULTS[ck].get(key, GLOBAL_DEFAULTS[key])
-        return GLOBAL_DEFAULTS[key]
-
     # Star trends baselines (if needed)
 
     lookup = {
@@ -258,19 +246,16 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
         "zip_avg_stars":           float(zip_context.get("avg_stars", 3.5)),
         "zip_avg_price":           float(zip_context.get("avg_price", 2.0)),
         "zip_closure_rate":        float(zip_context.get("closure_rate", 0.25)),
-        # Attributes from concept input (merged with smart defaults)
-        # If the user selected 'Auto' (None), use the Smart Default scaled down
-        # so it has a positive impact but less than an explicit 'Yes' (1.0).
-        # We'll use 0.6 as the "Auto" default weight if the cuisine typically has it.
-        **{
-            k: (
-                int(concept.get(k)) if concept.get(k) is not None 
-                else (get_val(k) * 0.6)
-            ) for k in [
-                "has_delivery", "has_takeout", "has_outdoor_seating", "good_for_kids",
-                "has_reservations", "has_wifi", "has_alcohol", "has_tv", "good_for_groups"
-            ]
-        },
+        # Attributes from concept input (merged with smart defaults earlier)
+        "has_delivery":            int(concept.get("has_delivery") or 0),
+        "has_takeout":             int(concept.get("has_takeout") or 1),
+        "has_outdoor_seating":     int(concept.get("has_outdoor_seating") or 0),
+        "good_for_kids":           int(concept.get("good_for_kids") or 0),
+        "has_reservations":        int(concept.get("has_reservations") or 0),
+        "has_wifi":                int(concept.get("has_wifi") or 0),
+        "has_alcohol":             int(concept.get("has_alcohol") or 0),
+        "has_tv":                  int(concept.get("has_tv") or 0),
+        "good_for_groups":         int(concept.get("good_for_groups") or 0),
         # Noise level
         "noise_level":             NOISE_MAP.get(concept.get("noise_level") or "average", 1),
         # Zip-level market context features (Real features for the improved model)
@@ -1028,15 +1013,14 @@ def predict_survival(req: PredictRequest):
     if not zip_context:
         raise HTTPException(status_code=404, detail=f"Zip code {req.zip_code} not in dataset.")
 
-    # Merge with defaults for non-binary fields (Price, Noise)
-    # Binary fields are left as None here so _build_feature_vector can handle the 0.6 'Auto' logic.
+    # Merge with defaults
     cuisine_key = next((k for k in CUISINE_DEFAULTS if k.lower() == req.cuisine.lower()), None)
     defaults = CUISINE_DEFAULTS.get(cuisine_key, GLOBAL_DEFAULTS)
     
     concept_dict = req.dict()
-    for key in ["price_tier", "noise_level"]:
+    for key, val in defaults.items():
         if concept_dict.get(key) is None:
-            concept_dict[key] = defaults.get(key)
+            concept_dict[key] = val
 
     # Build feature vector
     feature_vector = _build_feature_vector(concept_dict, zip_context)
@@ -1044,22 +1028,6 @@ def predict_survival(req: PredictRequest):
     import numpy as np
     X = np.array([feature_vector], dtype=float)
     prob = float(_survival_model.predict_proba(X)[0][1])
-    
-    # --- Apply Explicit Post-Prediction Bias ---
-    # Since tree models often discretize continuous inputs (e.g. splitting at 0.5), 
-    # our 0.6 "Auto" default and 1.0 "Yes" inputs get binned identically.
-    # We apply a small post-prediction scalar to ensure a tangible difference in the output.
-    explicit_bonus = 0.0
-    for k in ["has_delivery", "has_takeout", "has_outdoor_seating", "good_for_kids",
-              "has_reservations", "has_wifi", "has_alcohol", "has_tv", "good_for_groups"]:
-        val = concept_dict.get(k)
-        if val == 1:
-            explicit_bonus += 0.015  # +1.5% for explicit Yes
-        elif val == 0:
-            explicit_bonus -= 0.010  # -1.0% for explicit No
-
-    prob = max(0.01, min(0.99, prob + explicit_bonus))
-    
     threshold = _model_metadata["metrics"].get("best_threshold", 0.5)
     interpretation = _survival_score_interpretation(prob, threshold)
 
