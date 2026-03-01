@@ -62,7 +62,7 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
             </select>
             <div style={{ padding: "12px", border: "1px solid var(--border)", borderRadius: 12, background: "#fafafa" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Risk Regions (Select Multiple)
+                Risk Regions
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 {["low", "medium", "high"].map(v => {
