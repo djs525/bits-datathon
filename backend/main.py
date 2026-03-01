@@ -117,7 +117,10 @@ def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
     # Cap attr_bonus at 10 so zips with many attribute mismatches don't
     # dominate zips with genuine cuisine opportunities.
     attr_bonus = min(len(z["attr_gaps"]) * 2.5, 10.0)
-    return round(top_gap * 0.6 + market_size * 2 + attr_bonus, 2)
+    
+    raw_score = top_gap * 0.6 + market_size * 2 + attr_bonus
+    # Bound to a 0.1-99.9 scale for UI consistency
+    return max(0.1, min(99.9, round(raw_score, 1)))
 
 
 def risk_label(closure_rate: float) -> str:
