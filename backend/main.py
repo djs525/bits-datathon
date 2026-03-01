@@ -276,6 +276,69 @@ def _build_feature_vector(concept: dict, zip_context: dict) -> list[float]:
     return [lookup.get(f, 0.0) for f in feats]
 
 
+# Attribute weights in LOGIT (log-odds) space — not probability space.
+# This gives automatic diminishing returns near 0 and 1:
+#   base 0.50 + all-yes (+0.76 logit) → 0.68  (+18pp)
+#   base 0.70 + all-yes (+0.76 logit) → 0.82  (+12pp)
+#   base 0.95 + all-yes (+0.76 logit) → 0.97  ( +2pp)  ← no more ceiling problem
+# Delivery has the strongest asymmetry (no = heavy penalty).
+_ATTR_SURVIVAL_WEIGHTS: dict[str, dict] = {
+    "has_delivery":        {"yes":  0.22, "no": -0.52, "auto": 0.0},
+    "has_alcohol":         {"yes":  0.14, "no": -0.12, "auto": 0.0},
+    "has_takeout":         {"yes":  0.10, "no": -0.28, "auto": 0.0},
+    "good_for_kids":       {"yes":  0.09, "no": -0.18, "auto": 0.0},
+    "has_outdoor_seating": {"yes":  0.07, "no": -0.14, "auto": 0.0},
+    "has_wifi":            {"yes":  0.06, "no": -0.08, "auto": 0.0},
+    "good_for_groups":     {"yes":  0.05, "no": -0.06, "auto": 0.0},
+    "has_reservations":    {"yes":  0.02, "no": -0.04, "auto": 0.0},
+    "has_tv":              {"yes":  0.01, "no": -0.05, "auto": 0.0},
+}
+
+
+def _apply_attribute_survival_adjustment(base_prob: float, concept: dict) -> tuple[float, list[dict]]:
+    """
+    Adjust survival probability in logit space so attribute effects have natural
+    diminishing returns near the extremes (0 and 1).
+
+    Tiers:
+      True / 1 / "yes"  → positive logit delta
+      None / unset       → 0 (neutral)
+      False / 0 / "no"  → negative logit delta
+    """
+    base_logit = math.log(max(0.001, base_prob) / max(0.001, 1 - base_prob))
+    total_delta = 0.0
+    factors: list[dict] = []
+
+    for attr, weights in _ATTR_SURVIVAL_WEIGHTS.items():
+        val = concept.get(attr)
+
+        if val is None:
+            tier = "auto"
+        elif val in (True, 1, "yes", "true", "True"):
+            tier = "yes"
+        elif val in (False, 0, "no", "false", "False"):
+            tier = "no"
+        else:
+            tier = "auto"
+
+        delta = weights[tier]
+        total_delta += delta
+
+        if tier != "auto":
+            attr_label = attr.replace("has_", "").replace("good_for_", "").replace("_", " ").title()
+            # Actual probability impact depends on the base (diminishing near extremes)
+            actual_pp = (1 / (1 + math.exp(-(base_logit + delta)))) - base_prob
+            factors.append({
+                "attribute": attr_label,
+                "choice": tier,
+                "logit_delta": round(delta, 3),
+                "impact_pp": round(actual_pp * 100, 1),
+            })
+
+    adjusted = 1 / (1 + math.exp(-(base_logit + total_delta)))
+    return max(0.01, min(0.99, adjusted)), factors
+
+
 def _survival_score_interpretation(prob: float, threshold: float) -> dict:
     """Convert raw probability to a human-readable survival signal."""
     if prob >= 0.75:
@@ -735,24 +798,36 @@ def get_recommendations(
         elif z["closure_rate"] > 0.20:
             weakspot_penalty = -10.0
 
-        # 5. ML Survival Bonus (0, +8, or +15)
+        # 5. ML Survival Bonus (0, +8, or +15) — with attribute adjustment
         survival_bonus = 0
         survival_prob = None
         if _survival_model and cuisine:
             try:
                 mock_req = {
                     "cuisine": cuisine, "price_tier": max_price_tier or 2.0,
-                    "has_delivery": 1 if delivery else 0, "has_outdoor_seating": 1 if outdoor else 0,
-                    "good_for_kids": 1 if kid_friendly else 0,
+                    # Pass explicit boolean so 3-tier adjustment knows yes/no/auto
+                    "has_delivery":        delivery if delivery is not None else None,
+                    "has_outdoor_seating": outdoor if outdoor is not None else None,
+                    "good_for_kids":       kid_friendly if kid_friendly is not None else None,
                 }
-                feat_vec = _build_feature_vector(mock_req, z)
+                feat_vec = _build_feature_vector(
+                    {**mock_req,
+                     "has_delivery":        1 if delivery else 0,
+                     "has_outdoor_seating": 1 if outdoor else 0,
+                     "good_for_kids":       1 if kid_friendly else 0},
+                    z
+                )
                 import numpy as np
                 X = np.array([feat_vec], dtype=float)
-                survival_prob = float(_survival_model.predict_proba(X)[0][1])
+                raw_prob = float(_survival_model.predict_proba(X)[0][1])
+                # Apply 3-tier attribute adjustment
+                survival_prob, _ = _apply_attribute_survival_adjustment(raw_prob, mock_req)
                 if survival_prob > 0.65:
                     survival_bonus = 15.0
                 elif survival_prob > 0.50:
                     survival_bonus = 8.0
+                elif survival_prob < 0.35:
+                    survival_bonus = -10.0   # explicit penalty if attributes signal poor fit
             except:
                 pass
 
@@ -1024,12 +1099,24 @@ def predict_survival(req: PredictRequest):
         if concept_dict.get(key) is None:
             concept_dict[key] = val
 
-    # Build feature vector
+    # Build feature vector (binary 0/1 for the ML model)
     feature_vector = _build_feature_vector(concept_dict, zip_context)
 
     import numpy as np
     X = np.array([feature_vector], dtype=float)
-    prob = float(_survival_model.predict_proba(X)[0][1])
+    raw_prob = float(_survival_model.predict_proba(X)[0][1])
+
+    # Apply 3-tier attribute adjustment:
+    # concept_dict contains the merged defaults + user choices.
+    # Fields that were None in req stay None → "auto" tier (neutral).
+    # Fields explicitly set by user are True/False → yes/no tier.
+    req_fields = req.dict()  # original user input, pre-default-merge
+    attr_concept = {
+        k: req_fields.get(k)   # use original request so unset = None = auto
+        for k in _ATTR_SURVIVAL_WEIGHTS
+    }
+    prob, attr_factors = _apply_attribute_survival_adjustment(raw_prob, attr_concept)
+
     threshold = _model_metadata["metrics"].get("best_threshold", 0.5)
     interpretation = _survival_score_interpretation(prob, threshold)
 
@@ -1125,7 +1212,9 @@ def predict_survival(req: PredictRequest):
         "cuisine": req.cuisine,
         "concept_applied": {k: v for k, v in concept_dict.items() if k not in ["zip_code", "cuisine"]},
         "survival_probability": round(prob, 4),
+        "survival_probability_raw": round(raw_prob, 4),
         "survival_signal": interpretation,
+        "attribute_survival_factors": attr_factors,   # 3-tier yes/no/auto breakdown
         "market_context": market,
         "cuisine_gap": cuisine_gap,
         "top_survival_factors": top_factors,
