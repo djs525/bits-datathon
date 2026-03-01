@@ -1028,14 +1028,15 @@ def predict_survival(req: PredictRequest):
     if not zip_context:
         raise HTTPException(status_code=404, detail=f"Zip code {req.zip_code} not in dataset.")
 
-    # Merge with defaults
+    # Merge with defaults for non-binary fields (Price, Noise)
+    # Binary fields are left as None here so _build_feature_vector can handle the 0.6 'Auto' logic.
     cuisine_key = next((k for k in CUISINE_DEFAULTS if k.lower() == req.cuisine.lower()), None)
     defaults = CUISINE_DEFAULTS.get(cuisine_key, GLOBAL_DEFAULTS)
     
     concept_dict = req.dict()
-    for key, val in defaults.items():
+    for key in ["price_tier", "noise_level"]:
         if concept_dict.get(key) is None:
-            concept_dict[key] = val
+            concept_dict[key] = defaults.get(key)
 
     # Build feature vector
     feature_vector = _build_feature_vector(concept_dict, zip_context)
@@ -1043,6 +1044,22 @@ def predict_survival(req: PredictRequest):
     import numpy as np
     X = np.array([feature_vector], dtype=float)
     prob = float(_survival_model.predict_proba(X)[0][1])
+    
+    # --- Apply Explicit Post-Prediction Bias ---
+    # Since tree models often discretize continuous inputs (e.g. splitting at 0.5), 
+    # our 0.6 "Auto" default and 1.0 "Yes" inputs get binned identically.
+    # We apply a small post-prediction scalar to ensure a tangible difference in the output.
+    explicit_bonus = 0.0
+    for k in ["has_delivery", "has_takeout", "has_outdoor_seating", "good_for_kids",
+              "has_reservations", "has_wifi", "has_alcohol", "has_tv", "good_for_groups"]:
+        val = concept_dict.get(k)
+        if val == 1:
+            explicit_bonus += 0.015  # +1.5% for explicit Yes
+        elif val == 0:
+            explicit_bonus -= 0.010  # -1.0% for explicit No
+
+    prob = max(0.01, min(0.99, prob + explicit_bonus))
+    
     threshold = _model_metadata["metrics"].get("best_threshold", 0.5)
     interpretation = _survival_score_interpretation(prob, threshold)
 
