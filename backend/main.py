@@ -121,8 +121,8 @@ def opportunity_score(z: dict, cuisine_filter: str = None) -> float:
 
 
 def risk_label(closure_rate: float) -> str:
-    if closure_rate < 0.2:  return "low"
-    if closure_rate < 0.35: return "medium"
+    if closure_rate < 0.20: return "low"
+    if closure_rate < 0.30: return "medium"
     return "high"
 
 
@@ -615,7 +615,7 @@ def get_recommendations(
             allowed_risk_order = risk_order.get(max_risk, 2)
             if z_risk_order > allowed_risk_order:
                 # Apply buffer: if it only slightly exceeds, absorb at reduced penalty
-                closure_limit = {"low": 0.20, "medium": 0.35}.get(max_risk, 0.35)
+                closure_limit = {"low": 0.20, "medium": 0.30}.get(max_risk, 0.30)
                 overshoot = z["closure_rate"] - closure_limit
                 if overshoot <= RISK_TOLERANCE:
                     penalty -= 5.0   # small buffer penalty

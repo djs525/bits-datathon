@@ -64,7 +64,7 @@ export default function Opportunities({ cuisines, preload, onClearPreload }) {
               <option value="">Any Risk</option>
               <option value="low">Low Risk Only</option>
               <option value="medium">Medium or Lower</option>
-              <option value="high">All</option>
+              <option value="high">High Risk</option>
             </select>
             <select value={filters.min_market_size} onChange={e => set("min_market_size", e.target.value)} style={sel}>
               <option value="0">Any market size</option>

@@ -133,7 +133,7 @@ export default function Recommendations({ cuisines, preload, onClearPreload, onN
 
                     <Row label="Risk Tolerance">
                         <div style={{ display: "flex", gap: 8 }}>
-                            {[["", "Any"], ["low", "Low"], ["medium", "Med"]].map(([v, label]) => (
+                            {[["", "Any"], ["low", "Low"], ["medium", "Med"], ["high", "High"]].map(([v, label]) => (
                                 <button key={v} onClick={() => setMaxRisk(v)} style={{
                                     background: maxRisk === v ? "var(--text-main)" : "white",
                                     border: `1px solid ${maxRisk === v ? "var(--text-main)" : "var(--border)"}`,
