@@ -1,0 +1,5 @@
+# A Python virtualenv was committed to this repository before .gitignore
+# covered it. The tree is clean again, and this keeps GitHub's language
+# statistics measuring the project rather than its dependencies if anything
+# under that path ever reappears.
+bits/** linguist-vendored
